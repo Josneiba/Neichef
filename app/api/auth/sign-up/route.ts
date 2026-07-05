@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
-import { randomUUID } from 'crypto'
+import { env } from '@/lib/env'
 
 const signUpSchema = z.object({
   name: z.string().min(2),
@@ -19,39 +19,15 @@ export async function POST(request: Request) {
   }
 
   const { name, email, password, householdSize } = parsed.data
-  // Development bypass: create a local dummy session without email confirmation.
-  // Set `DEV_BYPASS_EMAIL_CONFIRMATION=true` in .env.local to enable.
-  if (process.env.DEV_BYPASS_EMAIL_CONFIRMATION === 'true') {
-    const id = randomUUID()
-    try {
-      await prisma.user.create({
-        data: {
-          id,
-          email,
-          name,
-          householdSize,
-          dietaryPreferences: [],
-          notificationDaysAhead: 3,
-        },
-      })
-    } catch (err) {
-      // Ignore DB errors in bypass mode — proceed to set cookie so UI can be tested
-      console.warn('prisma.user.create failed in DEV_BYPASS mode:', err)
-    }
-
-    const res = NextResponse.json({ success: true })
-    // Set dummy Supabase access tokens so middleware allows /app access for UI testing
-    // These tokens are NOT real and only meant for local development bypass.
-    res.cookies.set('sb-access-token', `dev-token-${id}`, { httpOnly: true, path: '/' })
-    res.cookies.set('sb-refresh-token', `dev-refresh-${id}`, { httpOnly: true, path: '/' })
-    return res
-  }
-
   const supabase = await createSupabaseServerClient()
+  const emailRedirectTo = `${env.NEXT_PUBLIC_APP_URL}/auth/confirm`
   const { data: authData, error: authError } = await supabase.auth.signUp({
     email,
     password,
-    options: { data: { name, household_size: householdSize } },
+    options: {
+      emailRedirectTo,
+      data: { name, household_size: householdSize },
+    },
   })
 
   if (authError || !authData.user) {

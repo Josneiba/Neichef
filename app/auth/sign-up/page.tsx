@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
+import { Eye, EyeOff } from 'lucide-react'
 import { ArrowLeft } from 'lucide-react'
 
 export default function SignUpPage() {
@@ -11,8 +12,11 @@ export default function SignUpPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
   const [householdSize, setHouseholdSize] = useState(2)
   const [error, setError] = useState('')
+  const [submitted, setSubmitted] = useState(false)
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
@@ -28,7 +32,8 @@ export default function SignUpPage() {
     })
 
     if (response.ok) {
-      router.push('/app')
+      setSubmitted(true)
+      setError('')
       return
     }
 
@@ -60,13 +65,19 @@ export default function SignUpPage() {
             <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" placeholder="alex@example.com" required className="w-full px-3 py-2.5 text-sm border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
-            <div>
+            <div className="relative">
               <label className="block text-xs font-medium text-foreground mb-1.5">Password</label>
-              <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" placeholder="••••••••" required className="w-full px-3 py-2.5 text-sm border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
+              <input value={password} onChange={(event) => setPassword(event.target.value)} type={showPassword ? 'text' : 'password'} placeholder="••••••••" required className="w-full pr-10 px-3 py-2.5 text-sm border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
+              <button type="button" aria-label="Toggle password visibility" onClick={() => setShowPassword((s) => !s)} className="absolute right-2 top-8 inline-flex items-center justify-center p-1 text-muted-foreground">
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
             </div>
-            <div>
+            <div className="relative">
               <label className="block text-xs font-medium text-foreground mb-1.5">Confirm password</label>
-              <input value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} type="password" placeholder="••••••••" required className="w-full px-3 py-2.5 text-sm border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
+              <input value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} type={showConfirm ? 'text' : 'password'} placeholder="••••••••" required className="w-full pr-10 px-3 py-2.5 text-sm border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring" />
+              <button type="button" aria-label="Toggle confirm password visibility" onClick={() => setShowConfirm((s) => !s)} className="absolute right-2 top-8 inline-flex items-center justify-center p-1 text-muted-foreground">
+                {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
             </div>
           </div>
           <div>
@@ -76,9 +87,15 @@ export default function SignUpPage() {
             </select>
           </div>
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
-          <button type="submit" className="w-full bg-primary text-primary-foreground py-3 rounded-md text-sm font-medium hover:bg-primary/90 transition-colors">
-            Create account
-          </button>
+          {submitted ? (
+            <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 text-sm text-foreground">
+              Cuenta creada. Revisa tu correo y confirma tu email usando el enlace enviado. Después podrás iniciar sesión.
+            </div>
+          ) : (
+            <button type="submit" className="w-full bg-primary text-primary-foreground py-3 rounded-md text-sm font-medium hover:bg-primary/90 transition-colors">
+              Create account
+            </button>
+          )}
         </form>
 
         <p className="text-sm text-center text-muted-foreground mt-6">
