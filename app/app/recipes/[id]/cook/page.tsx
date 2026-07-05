@@ -71,6 +71,14 @@ export default function CookModePage({ params }: { params: Promise<{ id: string 
   const [currentStep, setCurrentStep] = useState(0)
   const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set())
   const [showIngredients, setShowIngredients] = useState(false)
+  const [speechEnabled, setSpeechEnabled] = useState(false)
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  function speak(_text: string) {
+    // Plumbing for future Text-to-Speech. Disabled by default.
+    // TODO: enable actual speechSynthesis when user consents and UX is finalized.
+    if (!speechEnabled) return
+  }
 
   const markComplete = useCallback(() => {
     setCompletedSteps((prev) => {
@@ -124,12 +132,22 @@ export default function CookModePage({ params }: { params: Promise<{ id: string 
           <ChefHat className="w-4 h-4" strokeWidth={1.5} />
           <span className="font-serif">{recipe.title}</span>
         </div>
-        <button
-          onClick={() => setShowIngredients(!showIngredients)}
-          className="text-sidebar-foreground/60 hover:text-sidebar-foreground text-sm transition-colors"
-        >
-          Ingredients
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowIngredients(!showIngredients)}
+            className="text-sidebar-foreground/60 hover:text-sidebar-foreground text-sm transition-colors"
+          >
+            Ingredients
+          </button>
+          <button
+            onClick={() => setSpeechEnabled((s) => !s)}
+            className="text-sidebar-foreground/60 hover:text-sidebar-foreground text-sm transition-colors"
+            aria-pressed={speechEnabled}
+            title="Toggle text-to-speech (off by default)"
+          >
+            {speechEnabled ? 'TTS: On' : 'TTS: Off'}
+          </button>
+        </div>
       </div>
 
       {/* Progress bar */}

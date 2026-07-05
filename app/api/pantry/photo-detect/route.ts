@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { detectIngredients } from '@/lib/vision/detect-ingredients'
 
-const schema = z.object({ imageUrl: z.string().url().optional() })
+const schema = z.object({ imageUrl: z.string().url().optional(), imageBase64: z.string().optional() })
 
 async function getUserId() {
   const supabase = await createSupabaseServerClient()
@@ -20,13 +21,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
     }
 
-    return NextResponse.json({
-      items: [
-        { name: 'Cherry tomatoes', quantity: 300, unit: 'g', category: 'produce' },
-        { name: 'Cheddar cheese', quantity: 200, unit: 'g', category: 'dairy' },
-      ],
-      note: 'TODO: connect a free vision model in a later iteration.',
-    })
+    const input = parsed.data.imageUrl ?? parsed.data.imageBase64
+    if (!input) return NextResponse.json({ error: 'No image provided' }, { status: 400 })
+
+    const detected = await detectIngredients(input)
+
+    return NextResponse.json({ items: detected, note: 'Unconfirmed — edit before adding to pantry' })
   } catch {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
