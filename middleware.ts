@@ -1,7 +1,10 @@
-import { NextResponse, type NextRequest } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
+import { createClient as createSupabaseMiddlewareClient } from './utils/supabase/middleware'
 
 export async function middleware(request: NextRequest) {
+  const response = await createSupabaseMiddlewareClient(request)
   const { pathname } = request.nextUrl
+
   if (pathname.startsWith('/app')) {
     const token = request.cookies.get('sb-access-token')?.value
     if (!token) {
@@ -9,7 +12,7 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  return NextResponse.next()
+  return response
 }
 
 export const config = {

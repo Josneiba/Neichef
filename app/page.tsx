@@ -30,23 +30,26 @@ export default function LandingPage() {
       <header className="fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border">
         <div className="max-w-6xl mx-auto px-6 flex items-center justify-between h-16">
           <span className="font-serif text-xl tracking-tight text-foreground">NeiChef</span>
-          <nav className="hidden md:flex items-center gap-8 text-sm text-muted-foreground">
+          <nav className="hidden md:flex items-center gap-6 text-sm text-muted-foreground">
             <a href="#how-it-works" className="hover:text-foreground transition-colors">How it works</a>
             <a href="#features" className="hover:text-foreground transition-colors">Features</a>
-            <Link href="/auth/sign-in" className="hover:text-foreground transition-colors">Sign in</Link>
           </nav>
-          <Link
-            href="/app"
-            className="inline-flex items-center gap-1.5 bg-primary text-primary-foreground text-sm px-4 py-2 rounded-md font-medium hover:bg-primary/90 transition-colors"
-          >
-            Get started
-            <ArrowRight className="w-3.5 h-3.5" strokeWidth={2} />
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link href="/auth/sign-in" className="text-sm text-foreground/80 hover:text-foreground transition-colors">Sign in</Link>
+            <Link
+              href="/auth/sign-up"
+              className="inline-flex items-center gap-1.5 bg-primary text-primary-foreground text-sm px-4 py-2 rounded-md font-medium hover:bg-primary/90 transition-colors"
+            >
+              Sign up
+              <ArrowRight className="w-3.5 h-3.5" strokeWidth={2} />
+            </Link>
+          </div>
         </div>
       </header>
 
-      {/* Hero */}
-      <section className="pt-32 pb-20 px-6">
+      <main>
+        {/* Hero */}
+        <section className="pt-32 pb-20 px-6">
         <div className="max-w-6xl mx-auto">
           <div className="grid lg:grid-cols-2 gap-16 items-center">
             {/* Left */}
@@ -65,10 +68,10 @@ export default function LandingPage() {
               </p>
               <div className="flex flex-col sm:flex-row gap-3">
                 <Link
-                  href="/app"
+                  href="/auth/sign-up"
                   className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-md font-medium text-sm hover:bg-primary/90 transition-colors"
                 >
-                  Get started — it&apos;s free
+                  Sign up — it&apos;s free
                   <ArrowRight className="w-4 h-4" strokeWidth={2} />
                 </Link>
                 <a
@@ -329,14 +332,15 @@ export default function LandingPage() {
             Add what you have, see what&apos;s expiring, and cook something good with it. No subscription required to get started.
           </p>
           <Link
-            href="/app"
+            href="/auth/sign-up"
             className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-8 py-3.5 rounded-md font-medium hover:bg-primary/90 transition-colors"
           >
-            Open NeiChef
+            Create your free account
             <ArrowRight className="w-4 h-4" strokeWidth={2} />
           </Link>
         </div>
       </section>
+      </main>
 
       {/* Footer */}
       <footer className="bg-sidebar border-t border-sidebar-border px-6 py-10">
@@ -349,6 +353,7 @@ export default function LandingPage() {
             <a href="#" className="hover:text-sidebar-foreground/70 transition-colors">Privacy</a>
             <a href="#" className="hover:text-sidebar-foreground/70 transition-colors">Terms</a>
             <Link href="/auth/sign-in" className="hover:text-sidebar-foreground/70 transition-colors">Sign in</Link>
+            <Link href="/auth/sign-up" className="hover:text-sidebar-foreground/70 transition-colors">Sign up</Link>
           </div>
         </div>
       </footer>
