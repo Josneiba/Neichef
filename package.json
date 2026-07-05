@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
+    "apply:prisma": "node scripts/apply-prisma.js",
+    "postinstall": "node scripts/apply-prisma.js",
     "start": "next start",
     "lint": "eslint .",
     "test": "vitest run",
