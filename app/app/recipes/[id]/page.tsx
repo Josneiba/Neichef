@@ -1,0 +1,183 @@
+'use client'
+
+import { use } from 'react'
+import Link from 'next/link'
+import Image from 'next/image'
+import { useRecipes } from '@/lib/hooks'
+import { ArrowLeft, Clock, Bookmark, BookmarkCheck, ChefHat, Check, AlertCircle } from 'lucide-react'
+import { cn } from '@/lib/utils'
+
+const recipeImages: Record<string, string> = {
+  r1: '/recipe-chicken.png',
+  r2: '/recipe-risotto.png',
+  r3: '/recipe-salmon.png',
+  r4: '/recipe-eggs.png',
+  r5: '/recipe-soup.png',
+}
+
+const difficultyLabel: Record<string, string> = { easy: 'Easy', medium: 'Intermediate', hard: 'Advanced' }
+
+export default function RecipeDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
+  const { recipes, toggleSave } = useRecipes()
+  const recipe = recipes.find((r) => r.id === id)
+
+  if (!recipe) {
+    return (
+      <div className="px-6 py-8 max-w-3xl mx-auto">
+        <Link href="/app/recipes" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6">
+          <ArrowLeft className="w-4 h-4" strokeWidth={1.5} /> Back to recipes
+        </Link>
+        <p className="text-muted-foreground">Recipe not found.</p>
+      </div>
+    )
+  }
+
+  const img = recipeImages[recipe.id]
+  const missingIngredients = recipe.ingredients.filter((i) => !i.inPantry)
+  const matchRatio = recipe.pantryMatchCount / recipe.totalIngredients
+
+  return (
+    <div className="max-w-3xl mx-auto pb-24 lg:pb-8">
+      {/* Back */}
+      <div className="px-6 pt-8 pb-4">
+        <Link href="/app/recipes" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+          <ArrowLeft className="w-4 h-4" strokeWidth={1.5} />
+          Back to recipes
+        </Link>
+      </div>
+
+      {/* Hero image */}
+      <div className="relative h-64 md:h-80 bg-muted mx-6 rounded-xl overflow-hidden mb-6">
+        {img ? (
+          <Image src={img} alt={recipe.title} fill className="object-cover" priority />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <ChefHat className="w-12 h-12 text-muted-foreground" strokeWidth={1} />
+          </div>
+        )}
+        {recipe.usesExpiringItems && (
+          <div className="absolute top-4 left-4 bg-[oklch(0.94_0.07_75)] border border-[oklch(0.84_0.09_70)] text-[oklch(0.42_0.10_55)] text-xs font-medium px-3 py-1.5 rounded-full">
+            Uses expiring items
+          </div>
+        )}
+      </div>
+
+      <div className="px-6">
+        {/* Title + meta */}
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex-1 mr-4">
+            <h1 className="font-serif text-3xl text-foreground mb-2 text-pretty">{recipe.title}</h1>
+            <p className="text-sm text-muted-foreground leading-relaxed">{recipe.description}</p>
+          </div>
+          <button
+            onClick={() => toggleSave(recipe.id)}
+            className="flex-shrink-0 w-10 h-10 rounded-full border border-border flex items-center justify-center text-foreground hover:bg-muted transition-colors"
+            aria-label={recipe.isSaved ? 'Unsave' : 'Save'}
+          >
+            {recipe.isSaved
+              ? <BookmarkCheck className="w-5 h-5 text-primary" strokeWidth={1.5} />
+              : <Bookmark className="w-5 h-5" strokeWidth={1.5} />
+            }
+          </button>
+        </div>
+
+        {/* Stats bar */}
+        <div className="grid grid-cols-4 gap-3 py-4 border-y border-border mb-6">
+          {[
+            { label: 'Prep', value: `${recipe.prepTimeMinutes} min` },
+            { label: 'Cook', value: `${recipe.cookTimeMinutes} min` },
+            { label: 'Serves', value: String(recipe.servings) },
+            { label: 'Difficulty', value: difficultyLabel[recipe.difficulty] },
+          ].map(({ label, value }) => (
+            <div key={label} className="text-center">
+              <p className="font-serif text-lg text-foreground">{value}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Pantry match */}
+        <div className="bg-muted rounded-lg p-4 mb-6">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm font-medium text-foreground">Pantry coverage</p>
+            <p className="text-sm text-muted-foreground">{recipe.pantryMatchCount}/{recipe.totalIngredients} ingredients</p>
+          </div>
+          <div className="h-1.5 bg-border rounded-full overflow-hidden">
+            <div className="h-full bg-primary rounded-full" style={{ width: `${matchRatio * 100}%` }} />
+          </div>
+          {missingIngredients.length > 0 && (
+            <p className="text-xs text-muted-foreground mt-2">
+              Missing: {missingIngredients.map((i) => i.name).join(', ')}
+            </p>
+          )}
+        </div>
+
+        {/* Ingredients */}
+        <div className="mb-8">
+          <h2 className="font-serif text-xl text-foreground mb-4">Ingredients</h2>
+          <div className="space-y-2">
+            {recipe.ingredients.map((ing) => (
+              <div key={ing.name} className={cn('flex items-start gap-3 p-3 rounded-lg', ing.inPantry ? 'bg-[oklch(0.97_0.02_145)]' : 'bg-[oklch(0.97_0.02_25)]')}>
+                <div className={cn('w-5 h-5 rounded-full border flex items-center justify-center flex-shrink-0 mt-0.5', ing.inPantry ? 'bg-[oklch(0.32_0.08_145)] border-[oklch(0.32_0.08_145)]' : 'border-[oklch(0.7_0.1_25)] bg-transparent')}>
+                  {ing.inPantry
+                    ? <Check className="w-3 h-3 text-primary-foreground" strokeWidth={2.5} />
+                    : <AlertCircle className="w-3 h-3 text-[oklch(0.55_0.15_25)]" strokeWidth={2} />
+                  }
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={cn('text-sm font-medium', ing.inPantry ? 'text-foreground' : 'text-[oklch(0.42_0.1_25)]')}>
+                    {ing.amount} {ing.unit} {ing.name}
+                    {!ing.inPantry && <span className="ml-1 text-xs font-normal text-muted-foreground">— not in pantry</span>}
+                  </p>
+                  {ing.substitution && (
+                    <p className="text-xs text-muted-foreground mt-0.5">Sub: {ing.substitution}</p>
+                  )}
+                </div>
+                {ing.inPantry && (
+                  <span className="text-[10px] text-[oklch(0.38_0.07_145)] font-medium flex-shrink-0">In pantry</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Steps */}
+        <div className="mb-8">
+          <h2 className="font-serif text-xl text-foreground mb-4">Method</h2>
+          <div className="space-y-4">
+            {recipe.steps.map((step) => (
+              <div key={step.step} className="flex gap-4">
+                <div className="flex-shrink-0">
+                  <div className="w-7 h-7 rounded-full bg-muted border border-border flex items-center justify-center">
+                    <span className="text-xs font-medium text-muted-foreground">{step.step}</span>
+                  </div>
+                </div>
+                <div className="flex-1 pt-0.5">
+                  <p className="text-sm text-foreground leading-relaxed">{step.instruction}</p>
+                  {step.durationMinutes && (
+                    <div className="flex items-center gap-1 mt-1.5 text-xs text-muted-foreground">
+                      <Clock className="w-3 h-3" strokeWidth={1.5} />
+                      {step.durationMinutes} min
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Cook Mode CTA */}
+        <div className="sticky bottom-6 mt-8">
+          <Link
+            href={`/app/recipes/${recipe.id}/cook`}
+            className="flex items-center justify-center gap-2 w-full bg-primary text-primary-foreground py-4 rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors shadow-lg"
+          >
+            <ChefHat className="w-4 h-4" strokeWidth={1.5} />
+            Start Cook Mode
+          </Link>
+        </div>
+      </div>
+    </div>
+  )
+}

@@ -1,0 +1,25 @@
+import { NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
+import { createSupabaseServerClient } from '@/lib/supabase/server'
+
+async function getUserId() {
+  const supabase = await createSupabaseServerClient()
+  const { data } = await supabase.auth.getUser()
+  if (!data.user) throw new Error('Unauthorized')
+  return data.user.id
+}
+
+export async function GET(request: Request) {
+  try {
+    const userId = await getUserId()
+    const { searchParams } = new URL(request.url)
+    const isRead = searchParams.get('isRead')
+    const notifications = await prisma.notification.findMany({
+      where: { userId, ...(isRead ? { isRead: isRead === 'true' } : {}) },
+      orderBy: { createdAt: 'desc' },
+    })
+    return NextResponse.json(notifications)
+  } catch {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+}
