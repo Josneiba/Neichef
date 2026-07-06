@@ -7,6 +7,7 @@ let prismaClient: PrismaClient | undefined = globalForPrisma.prisma
 function getPrismaClient() {
   if (!prismaClient) {
     prismaClient = new PrismaClient({
+      adapter: 'binary',
       log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
     })
     if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prismaClient

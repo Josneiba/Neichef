@@ -18,8 +18,8 @@ export function usePantry() {
   const [items, setItems] = useState<PantryItem[]>([])
 
   useEffect(() => {
-    fetch('/api/pantry')
-      .then((res) => res.json())
+    fetch('/api/pantry', { credentials: 'same-origin' })
+      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
       .then((data) => {
         if (Array.isArray(data)) setItems(data.map(normalizePantryItem))
       })
@@ -30,6 +30,7 @@ export function usePantry() {
     const response = await fetch('/api/pantry', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
       body: JSON.stringify(item),
     })
     const created = await response.json()
@@ -39,7 +40,7 @@ export function usePantry() {
   }, [])
 
   const removeItem = useCallback(async (id: string) => {
-    await fetch(`/api/pantry/${id}`, { method: 'DELETE' })
+    await fetch(`/api/pantry/${id}`, { method: 'DELETE', credentials: 'same-origin' })
     setItems((prev) => prev.filter((item) => item.id !== id))
   }, [])
 
@@ -47,6 +48,7 @@ export function usePantry() {
     const response = await fetch(`/api/pantry/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
       body: JSON.stringify(updates),
     })
     if (response.ok) {
@@ -69,8 +71,8 @@ export function useRecipes() {
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
-    fetch('/api/recipes')
-      .then((res) => res.json())
+    fetch('/api/recipes', { credentials: 'same-origin' })
+      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
       .then((data) => {
         if (Array.isArray(data)) {
           setRecipes(data.map((recipe) => ({ ...recipe, isSaved: false, pantryMatchCount: 0, totalIngredients: recipe.ingredients?.length ?? 0, usesExpiringItems: false })))
@@ -81,7 +83,7 @@ export function useRecipes() {
 
   const toggleSave = useCallback(async (id: string) => {
     const isSaved = savedIds.has(id)
-    await fetch(`/api/recipes/${id}/save`, { method: isSaved ? 'DELETE' : 'POST' })
+    await fetch(`/api/recipes/${id}/save`, { method: isSaved ? 'DELETE' : 'POST', credentials: 'same-origin' })
     setSavedIds((prev) => {
       const next = new Set(prev)
       if (isSaved) next.delete(id)
@@ -95,6 +97,7 @@ export function useRecipes() {
     const response = await fetch('/api/recipes', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
       body: JSON.stringify(recipe),
     })
     const created = await response.json()
@@ -119,8 +122,8 @@ export function useNotifications() {
   const [notifications, setNotifications] = useState<Notification[]>([])
 
   useEffect(() => {
-    fetch('/api/notifications')
-      .then((res) => res.json())
+    fetch('/api/notifications', { credentials: 'same-origin' })
+      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
       .then((data) => {
         if (Array.isArray(data)) setNotifications(data)
       })
@@ -128,12 +131,12 @@ export function useNotifications() {
   }, [])
 
   const markRead = useCallback(async (id: string) => {
-    await fetch(`/api/notifications/${id}`, { method: 'PATCH' })
+    await fetch(`/api/notifications/${id}`, { method: 'PATCH', credentials: 'same-origin' })
     setNotifications((prev) => prev.map((notification) => (notification.id === id ? { ...notification, isRead: true } : notification)))
   }, [])
 
   const markAllRead = useCallback(async () => {
-    await Promise.all(notifications.map((notification) => fetch(`/api/notifications/${notification.id}`, { method: 'PATCH' })))
+    await Promise.all(notifications.map((notification) => fetch(`/api/notifications/${notification.id}`, { method: 'PATCH', credentials: 'same-origin' })))
     setNotifications((prev) => prev.map((notification) => ({ ...notification, isRead: true })))
   }, [notifications])
 
@@ -156,8 +159,8 @@ export function useBudget(): BudgetStats {
   })
 
   useEffect(() => {
-    fetch('/api/budget')
-      .then((res) => res.json())
+    fetch('/api/budget', { credentials: 'same-origin' })
+      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
       .then((data) => setBudgetStats(data))
       .catch(() => setBudgetStats({ itemsSavedCount: 0, estimatedSavedAmount: 0, estimatedWastedAmount: 0, weeklyData: [], monthlyTotals: [] }))
   }, [])
@@ -169,8 +172,8 @@ export function useProfile() {
   const [profile, setProfile] = useState<UserProfile>({ id: '', name: '', email: '', householdSize: 1, dietaryPreferences: [], notificationDaysAhead: 3 })
 
   useEffect(() => {
-    fetch('/api/profile')
-      .then((res) => res.json())
+    fetch('/api/profile', { credentials: 'same-origin' })
+      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
       .then((data) => {
         setProfile({ id: data.id ?? '', name: data.name ?? '', email: data.email ?? '', householdSize: data.householdSize ?? 1, dietaryPreferences: data.dietaryPreferences ?? [], notificationDaysAhead: data.notificationDaysAhead ?? 3 })
       })
@@ -181,6 +184,7 @@ export function useProfile() {
     const response = await fetch('/api/profile', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
       body: JSON.stringify(updates),
     })
     const updated = await response.json()

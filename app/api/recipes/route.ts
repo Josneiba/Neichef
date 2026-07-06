@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { apiError, apiSuccess } from '@/lib/api'
+import { fetchRandomMeals } from '@/lib/recipes/external-source'
 
 const recipeSchema = z.object({
   title: z.string().min(1),
@@ -23,19 +24,72 @@ async function getUserId() {
   return data.user.id
 }
 
+async function getOptionalUserId() {
+  const supabase = await createSupabaseServerClient()
+  const { data } = await supabase.auth.getUser()
+  return data.user?.id ?? null
+}
+
 export async function GET() {
+  // allow unauthenticated access: return public recipes or external recipes
+  let userId: string | null = null
   try {
-    const userId = await getUserId()
-    const recipes = await prisma.recipe.findMany({
-      where: { OR: [{ isPublic: true }, { userId }] },
+    userId = await getOptionalUserId()
+  } catch {
+    userId = null
+  }
+
+  // Try DB first; if it fails, fall back to HTTP-only TheMealDB fetches
+  let recipes: any[] | null = null
+  try {
+    recipes = await prisma.recipe.findMany({
+      where: userId ? { OR: [{ isPublic: true }, { userId }] } : { isPublic: true },
       include: { ingredients: true },
       orderBy: { createdAt: 'desc' },
     })
-
-    return apiSuccess(recipes)
-  } catch {
-    return apiError('Unauthorized', 'UNAUTHORIZED')
+  } catch (dbErr) {
+    recipes = null
   }
+
+  if (recipes && recipes.length > 0) {
+    return apiSuccess(recipes)
+  }
+
+  // No DB recipes or DB unavailable — fetch random meals via TheMealDB
+  const externalNoDb = await fetchRandomMeals(8)
+  if (externalNoDb.length > 0) {
+    return apiSuccess(externalNoDb)
+  }
+
+  // Last fallback: return safe static mock recipes to avoid empty list
+  return apiSuccess([
+    {
+      id: 'fallback-1',
+      title: 'Quick Tomato Pasta',
+      description: 'A simple pasta recipe that works with pantry staples and pantry-friendly tomatoes.',
+      prepTimeMinutes: 10,
+      cookTimeMinutes: 15,
+      servings: 2,
+      difficulty: 'easy',
+      tags: ['quick', 'vegetarian'],
+      costLevel: 'low',
+      ingredients: [
+        { name: 'Pasta', amount: 200, unit: 'g' },
+        { name: 'Tomato sauce', amount: 180, unit: 'g' },
+        { name: 'Garlic', amount: 2, unit: 'cloves' },
+      ],
+      steps: [
+        { step: 1, instruction: 'Boil pasta until al dente.' },
+        { step: 2, instruction: 'Sauté garlic and add tomato sauce.' },
+        { step: 3, instruction: 'Toss pasta with sauce and serve.' },
+      ],
+      imageUrl: undefined,
+      pantryMatchCount: 0,
+      totalIngredients: 3,
+      usesExpiringItems: false,
+      isSaved: false,
+    },
+  ])
 }
 
 export async function POST(request: Request) {

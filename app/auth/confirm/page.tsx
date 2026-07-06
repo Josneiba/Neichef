@@ -16,7 +16,7 @@ export default function ConfirmEmailPage() {
 
     async function confirm() {
       try {
-        const { data, error } = await supabase.auth.getSessionFromUrl({ storeSession: true })
+        const { data, error } = await supabase.auth.detectSessionInUrl({ storeSession: true })
         if (error) {
           setError(error.message || 'No se pudo confirmar el email.')
           setStatus('Confirmation failed')
@@ -25,13 +25,6 @@ export default function ConfirmEmailPage() {
 
         if (data?.session) {
           setStatus('Email confirmado correctamente. Redirigiendo...')
-          window.setTimeout(() => router.push('/app'), 1600)
-          return
-        }
-
-        const session = await supabase.auth.getSession()
-        if (session.data?.session) {
-          setStatus('Email confirmado. Redirigiendo al panel...')
           window.setTimeout(() => router.push('/app'), 1600)
           return
         }

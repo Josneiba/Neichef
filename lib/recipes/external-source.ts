@@ -9,7 +9,7 @@ export function splitInstructionsIntoSteps(text: string): string[] {
     .filter(Boolean)
 }
 
-function normalizeMealToRecipe(meal: Record<string, unknown>) {
+export function normalizeMealToRecipe(meal: Record<string, any>) {
   const ingredients: { name: string; amount: number; unit: string }[] = []
   for (let i = 1; i <= 20; i++) {
     const name = String(meal[`strIngredient${i}`] ?? '').trim()
@@ -92,6 +92,23 @@ export async function getRecipeDetail(externalId: string) {
   } catch {
     return { ...normalized, ingredients: normalized.ingredients, steps: normalized.steps }
   }
+}
+
+export async function fetchRandomMeals(count = 8) {
+  const results = []
+  for (let i = 0; i < count; i++) {
+    try {
+      const res = await fetch('https://www.themealdb.com/api/json/v1/1/random.php')
+      if (!res.ok) continue
+      const data = await res.json()
+      const meal = data?.meals?.[0]
+      if (!meal) continue
+      results.push(normalizeMealToRecipe(meal))
+    } catch {
+      // ignore individual failures
+    }
+  }
+  return results
 }
 
 export async function searchRecipesByIngredients(ingredients: string[]) {

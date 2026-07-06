@@ -8,14 +8,23 @@ const signUpSchema = z.object({
   name: z.string().min(2),
   email: z.string().email(),
   password: z.string().min(8),
-  householdSize: z.number().int().min(1).max(6),
+  householdSize: z.preprocess(
+    (value) => {
+      if (typeof value === 'string') {
+        return Number(value)
+      }
+      return value
+    },
+    z.number().int().min(1).max(6),
+  ),
 })
 
 export async function POST(request: Request) {
   const body = await request.json()
   const parsed = signUpSchema.safeParse(body)
   if (!parsed.success) {
-    return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
+    const errors = parsed.error.issues.map((issue) => `${issue.path.join('.')} ${issue.message}`).join(', ')
+    return NextResponse.json({ error: `Invalid payload: ${errors}` }, { status: 400 })
   }
 
   const { name, email, password, householdSize } = parsed.data
@@ -31,7 +40,11 @@ export async function POST(request: Request) {
   })
 
   if (authError || !authData.user) {
-    return NextResponse.json({ error: authError?.message ?? 'Unable to create account' }, { status: 400 })
+    const rawMessage = authError?.message ?? 'Unable to create account'
+    const message = rawMessage.toLowerCase().includes('rate limit')
+      ? 'Email rate limit exceeded. Wait a few minutes and try again, or check your inbox for the previous confirmation link.'
+      : rawMessage
+    return NextResponse.json({ error: message }, { status: 400 })
   }
 
   await prisma.user.create({
@@ -45,5 +58,5 @@ export async function POST(request: Request) {
     },
   })
 
-  return NextResponse.json({ success: true })
+  return NextResponse.json({ success: true, message: 'Registrado. Revisa tu correo y confirma tu cuenta con el enlace que te enviamos.' })
 }

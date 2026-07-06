@@ -17,6 +17,7 @@ export default function SignUpPage() {
   const [householdSize, setHouseholdSize] = useState(2)
   const [error, setError] = useState('')
   const [submitted, setSubmitted] = useState(false)
+  const [successMessage, setSuccessMessage] = useState('')
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
@@ -31,13 +32,14 @@ export default function SignUpPage() {
       body: JSON.stringify({ name, email, password, householdSize }),
     })
 
+    const payload = await response.json().catch(() => ({}))
     if (response.ok) {
+      setSuccessMessage(payload.message || 'Cuenta creada. Revisa tu correo para confirmar tu email.')
       setSubmitted(true)
       setError('')
       return
     }
 
-    const payload = await response.json().catch(() => ({}))
     setError(payload.error ?? 'Unable to create account')
   }
 
@@ -89,7 +91,8 @@ export default function SignUpPage() {
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
           {submitted ? (
             <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 text-sm text-foreground">
-              Cuenta creada. Revisa tu correo y confirma tu email usando el enlace enviado. Después podrás iniciar sesión.
+              {successMessage}
+              <p className="mt-2 text-muted-foreground">Si no ves el correo en unos minutos, revisa tu carpeta de spam.</p>
             </div>
           ) : (
             <button type="submit" className="w-full bg-primary text-primary-foreground py-3 rounded-md text-sm font-medium hover:bg-primary/90 transition-colors">
