@@ -3,8 +3,8 @@
 import { use } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { useRecipes } from '@/lib/hooks'
-import { ArrowLeft, Clock, Bookmark, BookmarkCheck, ChefHat, Check, AlertCircle } from 'lucide-react'
+import { useRecipe } from '@/lib/hooks'
+import { ArrowLeft, Clock, Bookmark, BookmarkCheck, ChefHat, Check, AlertCircle, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const recipeImages: Record<string, string> = {
@@ -19,23 +19,31 @@ const difficultyLabel: Record<string, string> = { easy: 'Easy', medium: 'Interme
 
 export default function RecipeDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
-  const { recipes, toggleSave } = useRecipes()
-  const recipe = recipes.find((r) => r.id === id)
+  const { recipe, isLoading, error, toggleSave } = useRecipe(id)
 
-  if (!recipe) {
+  if (isLoading) {
+    return (
+      <div className="px-6 py-8 max-w-3xl mx-auto flex flex-col items-center justify-center min-h-[50vh] text-muted-foreground">
+        <Loader2 className="w-6 h-6 animate-spin mb-3" strokeWidth={1.5} />
+        <p className="text-sm">Loading recipe…</p>
+      </div>
+    )
+  }
+
+  if (!recipe || error) {
     return (
       <div className="px-6 py-8 max-w-3xl mx-auto">
         <Link href="/app/recipes" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6">
           <ArrowLeft className="w-4 h-4" strokeWidth={1.5} /> Back to recipes
         </Link>
-        <p className="text-muted-foreground">Recipe not found.</p>
+        <p className="text-muted-foreground">{error ?? 'Recipe not found.'}</p>
       </div>
     )
   }
 
   const img = recipeImages[recipe.id]
-  const missingIngredients = recipe.ingredients.filter((i) => !i.inPantry)
-  const matchRatio = recipe.pantryMatchCount / recipe.totalIngredients
+  const missingIngredients = recipe.ingredients.filter((i) => !i.inPantry && !i.isStaple)
+  const matchRatio = recipe.pantryMatchCount / Math.max(recipe.totalIngredients, 1)
 
   return (
     <div className="max-w-3xl mx-auto pb-24 lg:pb-8">
@@ -71,7 +79,7 @@ export default function RecipeDetailPage({ params }: { params: Promise<{ id: str
             <p className="text-sm text-muted-foreground leading-relaxed">{recipe.description}</p>
           </div>
           <button
-            onClick={() => toggleSave(recipe.id)}
+            onClick={() => toggleSave()}
             className="flex-shrink-0 w-10 h-10 rounded-full border border-border flex items-center justify-center text-foreground hover:bg-muted transition-colors"
             aria-label={recipe.isSaved ? 'Unsave' : 'Save'}
           >

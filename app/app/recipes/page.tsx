@@ -1,11 +1,12 @@
 'use client'
 
 import { useState } from 'react'
+import type { FormEvent } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useRecipes } from '@/lib/hooks'
 import { EmptyState } from '@/components/ui/empty-state'
-import { BookOpen, Clock, Users, Bookmark, BookmarkCheck, ArrowRight, Plus } from 'lucide-react'
+import { BookOpen, Clock, Users, Bookmark, BookmarkCheck, ArrowRight, Plus, Search, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Recipe } from '@/lib/types'
 
@@ -22,7 +23,7 @@ type DifficultyFilter = 'all' | 'easy' | 'medium' | 'hard'
 type CostFilter = 'all' | 'low' | 'medium' | 'high'
 
 function RecipeCard({ recipe, onToggleSave }: { recipe: Recipe; onToggleSave: (id: string) => void }) {
-  const matchRatio = recipe.pantryMatchCount / recipe.totalIngredients
+  const matchRatio = recipe.pantryMatchCount / Math.max(recipe.totalIngredients, 1)
   const totalTime = recipe.prepTimeMinutes + recipe.cookTimeMinutes
   const img = recipeImages[recipe.id]
 
@@ -97,11 +98,13 @@ function RecipeCard({ recipe, onToggleSave }: { recipe: Recipe; onToggleSave: (i
 }
 
 export default function RecipesPage() {
-  const { suggestedRecipes, savedRecipes, toggleSave } = useRecipes()
+  const { suggestedRecipes, savedRecipes, toggleSave, findRecipesByIngredients, usePantrySuggestions, isLoadingSuggestions, suggestionError } = useRecipes()
   const [tab, setTab] = useState<Tab>('suggested')
   const [diffFilter, setDiffFilter] = useState<DifficultyFilter>('all')
   const [costFilter, setCostFilter] = useState<CostFilter>('all')
   const [maxTime, setMaxTime] = useState<number | 'any'>('any')
+  const [ingredientText, setIngredientText] = useState('')
+  const [matchMode, setMatchMode] = useState<'flexible' | 'exact'>('flexible')
 
   const source = tab === 'suggested' ? suggestedRecipes : savedRecipes
 
@@ -111,6 +114,20 @@ export default function RecipesPage() {
     if (maxTime !== 'any' && r.prepTimeMinutes + r.cookTimeMinutes > maxTime) return false
     return true
   })
+
+  function handleIngredientSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const ingredients = ingredientText
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean)
+    if (ingredients.length === 0) {
+      void usePantrySuggestions()
+      return
+    }
+    setTab('suggested')
+    void findRecipesByIngredients(ingredients, matchMode)
+  }
 
   return (
     <div className="px-6 py-8 max-w-5xl mx-auto pb-24 lg:pb-8">
@@ -128,6 +145,44 @@ export default function RecipesPage() {
           Add recipe
         </Link>
       </div>
+
+      <form onSubmit={handleIngredientSearch} className="border border-border rounded-lg p-3 mb-6 bg-card">
+        <div className="flex flex-col md:flex-row gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" strokeWidth={1.5} />
+            <input
+              value={ingredientText}
+              onChange={(event) => setIngredientText(event.target.value)}
+              placeholder="Chicken, tomato, rice..."
+              className="w-full pl-9 pr-3 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+          </div>
+          <select
+            value={matchMode}
+            onChange={(event) => setMatchMode(event.target.value as 'flexible' | 'exact')}
+            className="px-3 py-2.5 text-sm border border-border rounded-md bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          >
+            <option value="flexible">Can include extras</option>
+            <option value="exact">Exact main ingredients</option>
+          </select>
+          <button
+            type="submit"
+            disabled={isLoadingSuggestions}
+            className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-md text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-60"
+          >
+            {isLoadingSuggestions ? <Loader2 className="w-4 h-4 animate-spin" strokeWidth={2} /> : <Search className="w-4 h-4" strokeWidth={2} />}
+            Find recipes
+          </button>
+          <button
+            type="button"
+            onClick={() => { setIngredientText(''); void usePantrySuggestions() }}
+            className="px-3 py-2.5 rounded-md border border-border text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          >
+            Use pantry
+          </button>
+        </div>
+        {suggestionError && <p className="text-xs text-destructive mt-2">{suggestionError}</p>}
+      </form>
 
       {/* Tabs */}
       <div className="flex border-b border-border mb-6">

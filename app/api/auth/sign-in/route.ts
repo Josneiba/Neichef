@@ -15,6 +15,15 @@ export async function POST(request: Request) {
   }
 
   const { email, password } = parsed.data
+
+  // createSupabaseServerClient() is wired to Next's cookies() store with a
+  // setAll() callback, so calling signInWithPassword() through it persists
+  // the session using Supabase's own cookie format automatically. We must
+  // NOT set our own 'sb-access-token' cookies here — the rest of the app
+  // (middleware, every API route's getUser() call) reads the session back
+  // through the same @supabase/ssr client, which only recognizes cookies it
+  // wrote itself. Two different cookie schemes were the reason a
+  // "successful" sign-in still left every other request unauthenticated.
   const supabase = await createSupabaseServerClient()
   const { data, error } = await supabase.auth.signInWithPassword({ email, password })
 
@@ -22,34 +31,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error.message ?? 'Unable to sign in' }, { status: 400 })
   }
 
-  // Return session and user info for debugging/dev flows.
-  // In production you may want to remove sensitive tokens from responses.
-  if (data.session) {
-    const res = NextResponse.json({ success: true, session: data.session, user: data.user })
-    // Set Supabase session cookies so client requests include them.
-    try {
-        if (data.session.access_token) {
-          res.cookies.set('sb-access-token', data.session.access_token, {
-            httpOnly: true,
-            path: '/',
-            sameSite: 'lax',
-            secure: process.env.NODE_ENV === 'production',
-          })
-        }
-        if (data.session.refresh_token) {
-          res.cookies.set('sb-refresh-token', data.session.refresh_token, {
-            httpOnly: true,
-            path: '/',
-            sameSite: 'lax',
-            secure: process.env.NODE_ENV === 'production',
-          })
-        }
-    } catch (e) {
-      // ignore cookie set errors
-    }
-
-    return res
-  }
-
-  return NextResponse.json({ success: false, session: null, user: null })
+  return NextResponse.json({ success: true, user: data.user })
 }

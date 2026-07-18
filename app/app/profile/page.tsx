@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useProfile } from '@/lib/hooks'
 import { User, Bell, Leaf, Home, Check, LogOut } from 'lucide-react'
@@ -31,6 +31,20 @@ export default function ProfilePage() {
   const [notifDays, setNotifDays] = useState(profile.notificationDaysAhead)
   const [dietary, setDietary] = useState<string[]>(profile.dietaryPreferences)
 
+  // `profile` starts empty and is populated asynchronously by useProfile()'s
+  // fetch — the useState calls above only capture that initial (empty)
+  // value once, so without this the form fields never actually show the
+  // person's saved data. Sync whenever the loaded profile's id changes
+  // (i.e. once, when the fetch resolves) rather than on every render.
+  useEffect(() => {
+    if (!profile.id) return
+    setName(profile.name)
+    setEmail(profile.email)
+    setHouseholdSize(profile.householdSize)
+    setNotifDays(profile.notificationDaysAhead)
+    setDietary(profile.dietaryPreferences)
+  }, [profile.id])
+
   function toggleDietary(pref: string) {
     setDietary((prev) => prev.includes(pref) ? prev.filter((p) => p !== pref) : [...prev, pref])
   }
@@ -44,6 +58,7 @@ export default function ProfilePage() {
   async function handleSignOut() {
     await fetch('/api/auth/sign-out', { method: 'POST' })
     router.push('/auth/sign-in')
+    router.refresh()
   }
 
   return (

@@ -23,10 +23,13 @@ export async function GET() {
     const userId = await getUserId()
     const profile = await prisma.user.findUnique({ where: { id: userId } })
     if (!profile) {
+      console.warn('[profile:get] profile not found', { userId })
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
     }
+    console.info('[profile:get] loaded profile', { userId })
     return NextResponse.json(profile)
-  } catch {
+  } catch (err) {
+    console.error('[profile:get] failed', err)
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 }
@@ -37,6 +40,7 @@ export async function PATCH(request: Request) {
     const body = await request.json()
     const parsed = profileSchema.safeParse(body)
     if (!parsed.success) {
+      console.warn('[profile:patch] invalid payload', parsed.error.flatten())
       return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
     }
 
@@ -45,8 +49,10 @@ export async function PATCH(request: Request) {
       data: parsed.data,
     })
 
+    console.info('[profile:patch] updated profile', { userId })
     return NextResponse.json(profile)
-  } catch {
+  } catch (err) {
+    console.error('[profile:patch] failed', err)
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 }

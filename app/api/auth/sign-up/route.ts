@@ -47,16 +47,47 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: message }, { status: 400 })
   }
 
-  await prisma.user.create({
-    data: {
-      id: authData.user.id,
-      email,
-      name,
-      householdSize,
-      dietaryPreferences: [],
-      notificationDaysAhead: 3,
-    },
-  })
+  // Create (or repair) the matching application-database row. This is
+  // best-effort and must not fail the whole signup: the Supabase Auth user
+  // already exists at this point, so a DB hiccup here should not strand the
+  // person with an auth account but no way to log in. `upsert` also makes
+  // this safe to call again if a previous signup attempt partially failed.
+  try {
+    await prisma.user.upsert({
+      where: { id: authData.user.id },
+      update: {},
+      create: {
+        id: authData.user.id,
+        email,
+        name,
+        householdSize,
+        dietaryPreferences: [],
+        notificationDaysAhead: 3,
+      },
+    })
+    console.info('[auth:sign-up] application profile ready', { userId: authData.user.id, confirmed: Boolean(authData.session) })
+  } catch (err) {
+    console.error('Failed to create application user row during sign-up:', err)
+    return NextResponse.json(
+      {
+        error:
+          'Your account was created but we could not finish setting up your profile. Please try signing in — if this keeps happening, contact support.',
+      },
+      { status: 500 },
+    )
+  }
 
-  return NextResponse.json({ success: true, message: 'Registrado. Revisa tu correo y confirma tu cuenta con el enlace que te enviamos.' })
+  // If the Supabase project has "Confirm email" turned off, signUp() already
+  // returns an active session — the person is logged in immediately and the
+  // session cookie was persisted by createSupabaseServerClient()'s cookie
+  // adapter. Tell the client so it can skip the "check your email" screen.
+  if (authData.session) {
+    return NextResponse.json({ success: true, confirmed: true, message: 'Account created.' })
+  }
+
+  return NextResponse.json({
+    success: true,
+    confirmed: false,
+    message: 'Registrado. Revisa tu correo y confirma tu cuenta con el enlace que te enviamos.',
+  })
 }

@@ -1,15 +1,21 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useState, useEffect, Suspense } from 'react'
 import { ArrowLeft } from 'lucide-react'
 
-export default function SignInPage() {
+function SignInForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    const paramError = searchParams.get('error')
+    if (paramError) setError(paramError)
+  }, [searchParams])
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
@@ -21,7 +27,9 @@ export default function SignInPage() {
     })
 
     if (response.ok) {
-      router.push('/app')
+      const next = searchParams.get('next')
+      router.push(next && next.startsWith('/app') ? next : '/app')
+      router.refresh()
       return
     }
 
@@ -67,5 +75,13 @@ export default function SignInPage() {
         </p>
       </div>
     </div>
+  )
+}
+
+export default function SignInPage() {
+  return (
+    <Suspense fallback={null}>
+      <SignInForm />
+    </Suspense>
   )
 }

@@ -13,21 +13,29 @@ async function getUserId() {
 }
 
 export async function POST(request: Request) {
+  let userId = ''
   try {
-    await getUserId()
-    const body = await request.json()
-    const parsed = schema.safeParse(body)
-    if (!parsed.success) {
-      return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
-    }
-
-    const input = parsed.data.imageUrl ?? parsed.data.imageBase64
-    if (!input) return NextResponse.json({ error: 'No image provided' }, { status: 400 })
-
-    const detected = await detectIngredients(input)
-
-    return NextResponse.json({ items: detected, note: 'Unconfirmed — edit before adding to pantry' })
+    userId = await getUserId()
   } catch {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  const body = await request.json()
+  const parsed = schema.safeParse(body)
+  if (!parsed.success) {
+    return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
+  }
+
+  const input = parsed.data.imageUrl ?? parsed.data.imageBase64
+  if (!input) return NextResponse.json({ error: 'No image provided' }, { status: 400 })
+
+  const result = await detectIngredients(input)
+
+  if (!result.ok) {
+    console.warn('[pantry:photo-detect] detection failed', { userId, error: result.error })
+    return NextResponse.json({ error: result.error }, { status: 502 })
+  }
+
+  console.info('[pantry:photo-detect] detected ingredients', { userId, count: result.items.length })
+  return NextResponse.json({ items: result.items, note: 'Unconfirmed — edit before adding to pantry' })
 }

@@ -2,7 +2,7 @@
 
 import { use, useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { useRecipes } from '@/lib/hooks'
+import { useRecipe } from '@/lib/hooks'
 import { ArrowLeft, ArrowRight, ChefHat, Clock, Check, RotateCcw, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -65,8 +65,7 @@ function Timer({ minutes }: { minutes: number }) {
 
 export default function CookModePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
-  const { recipes } = useRecipes()
-  const recipe = recipes.find((r) => r.id === id)
+  const { recipe, isLoading } = useRecipe(id)
 
   const [currentStep, setCurrentStep] = useState(0)
   const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set())
@@ -98,6 +97,14 @@ export default function CookModePage({ params }: { params: Promise<{ id: string 
   const goPrev = useCallback(() => {
     if (currentStep > 0) setCurrentStep((s) => s - 1)
   }, [currentStep])
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <ChefHat className="w-8 h-8 text-muted-foreground animate-pulse" strokeWidth={1} />
+      </div>
+    )
+  }
 
   if (!recipe) {
     return (

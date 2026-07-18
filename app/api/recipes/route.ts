@@ -3,6 +3,13 @@ import { prisma } from '@/lib/prisma'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { apiError, apiSuccess } from '@/lib/api'
 import { fetchRandomMeals } from '@/lib/recipes/external-source'
+import { matchIngredientsToPantry } from '@/lib/recipes/enrich'
+
+type RecipeForResponse = {
+  id: string
+  ingredients: { name: string }[]
+  [key: string]: unknown
+}
 
 const recipeSchema = z.object({
   title: z.string().min(1),
@@ -40,25 +47,46 @@ export async function GET() {
   }
 
   // Try DB first; if it fails, fall back to HTTP-only TheMealDB fetches
-  let recipes: any[] | null = null
+  let recipes: RecipeForResponse[] | null = null
+  let pantryItems: { name: string; expirationDate: Date }[] = []
+  let savedIds = new Set<string>()
   try {
     recipes = await prisma.recipe.findMany({
       where: userId ? { OR: [{ isPublic: true }, { userId }] } : { isPublic: true },
-      include: { ingredients: true },
+      include: { ingredients: true, steps: true },
       orderBy: { createdAt: 'desc' },
     })
-  } catch (dbErr) {
+
+    if (userId) {
+      const [pantry, saved] = await Promise.all([
+        prisma.pantryItem.findMany({ where: { userId }, select: { name: true, expirationDate: true } }),
+        prisma.savedRecipe.findMany({ where: { userId }, select: { recipeId: true } }),
+      ])
+      pantryItems = pantry
+      savedIds = new Set(saved.map((s) => s.recipeId))
+    }
+  } catch {
+    console.warn('[recipes:list] database unavailable, falling back to external recipes')
     recipes = null
   }
 
   if (recipes && recipes.length > 0) {
-    return apiSuccess(recipes)
+    const enriched = recipes.map((recipe) => {
+      const match = matchIngredientsToPantry(recipe.ingredients, pantryItems)
+      return { ...recipe, ...match, isSaved: savedIds.has(recipe.id) }
+    })
+    return apiSuccess(enriched)
   }
 
   // No DB recipes or DB unavailable — fetch random meals via TheMealDB
   const externalNoDb = await fetchRandomMeals(8)
   if (externalNoDb.length > 0) {
-    return apiSuccess(externalNoDb)
+    console.info('[recipes:list] serving external fallback recipes', { count: externalNoDb.length })
+    const enriched = externalNoDb.map((recipe) => {
+      const match = matchIngredientsToPantry(recipe.ingredients as { name: string }[], pantryItems)
+      return { ...recipe, ...match, isSaved: savedIds.has(recipe.id) }
+    })
+    return apiSuccess(enriched)
   }
 
   // Last fallback: return safe static mock recipes to avoid empty list
@@ -74,9 +102,9 @@ export async function GET() {
       tags: ['quick', 'vegetarian'],
       costLevel: 'low',
       ingredients: [
-        { name: 'Pasta', amount: 200, unit: 'g' },
-        { name: 'Tomato sauce', amount: 180, unit: 'g' },
-        { name: 'Garlic', amount: 2, unit: 'cloves' },
+        { name: 'Pasta', amount: 200, unit: 'g', inPantry: false },
+        { name: 'Tomato sauce', amount: 180, unit: 'g', inPantry: false },
+        { name: 'Garlic', amount: 2, unit: 'cloves', inPantry: false },
       ],
       steps: [
         { step: 1, instruction: 'Boil pasta until al dente.' },

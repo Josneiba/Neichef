@@ -34,6 +34,10 @@ export default function SignUpPage() {
 
     const payload = await response.json().catch(() => ({}))
     if (response.ok) {
+      if (payload.confirmed) {
+        router.push('/app')
+        return
+      }
       setSuccessMessage(payload.message || 'Cuenta creada. Revisa tu correo para confirmar tu email.')
       setSubmitted(true)
       setError('')

@@ -1,20 +1,23 @@
-import { type NextRequest, NextResponse } from 'next/server'
-import { createClient as createSupabaseMiddlewareClient } from './utils/supabase/middleware'
+import { NextResponse, type NextRequest } from 'next/server'
+import { updateSession } from '@/lib/supabase/middleware'
 
 export async function middleware(request: NextRequest) {
-  const response = await createSupabaseMiddlewareClient(request)
+  const { response, user } = await updateSession(request)
   const { pathname } = request.nextUrl
 
-  if (pathname.startsWith('/app')) {
-    const token = request.cookies.get('sb-access-token')?.value
-    if (!token) {
-      return NextResponse.redirect(new URL('/auth/sign-in', request.url))
-    }
+  if (pathname.startsWith('/app') && !user) {
+    const redirectUrl = new URL('/auth/sign-in', request.url)
+    redirectUrl.searchParams.set('next', pathname)
+    return NextResponse.redirect(redirectUrl)
+  }
+
+  if ((pathname === '/auth/sign-in' || pathname === '/auth/sign-up') && user) {
+    return NextResponse.redirect(new URL('/app', request.url))
   }
 
   return response
 }
 
 export const config = {
-  matcher: ['/app/:path*'],
+  matcher: ['/app/:path*', '/auth/sign-in', '/auth/sign-up'],
 }

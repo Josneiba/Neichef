@@ -1,0 +1,18 @@
+allowBuilds:
+  '@prisma/engines': true
+  esbuild: true
+  msw: true
+  prisma: true
+  sharp: true
+  unrs-resolver: true
+
+onlyBuiltDependencies:
+  - '@prisma/engines'
+  - prisma
+  - esbuild
+  - sharp
+  - unrs-resolver
+  - msw
+
+overrides:
+  hono: 4.12.25

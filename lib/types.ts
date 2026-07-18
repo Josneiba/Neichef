@@ -33,6 +33,7 @@ export interface RecipeIngredient {
   amount: number
   unit: string
   inPantry: boolean
+  isStaple?: boolean
   substitution?: string
 }
 

@@ -13,7 +13,7 @@ async function getUserId() {
 
 export async function POST(request: Request) {
   try {
-    await getUserId()
+    const userId = await getUserId()
     const body = await request.json()
     const parsed = schema.safeParse(body)
     if (!parsed.success) {
@@ -24,16 +24,19 @@ export async function POST(request: Request) {
     const data = await response.json()
 
     if (!data.product) {
+      console.info('[pantry:barcode] product not found', { userId, barcode: parsed.data.barcode })
       return NextResponse.json({ error: 'No product found' }, { status: 404 })
     }
 
+    console.info('[pantry:barcode] product found', { userId, barcode: parsed.data.barcode })
     return NextResponse.json({
       barcode: parsed.data.barcode,
       name: data.product.product_name ?? 'Unknown product',
       category: data.product.categories ?? 'other',
       quantity: data.product.quantity ?? '1',
     })
-  } catch {
+  } catch (err) {
+    console.error('[pantry:barcode] lookup failed', err)
     return NextResponse.json({ error: 'Unable to lookup barcode' }, { status: 400 })
   }
 }

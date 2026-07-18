@@ -1,29 +1,70 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { getRecipeDetail } from '@/lib/recipes/external-source'
+import { matchIngredientsToPantry } from '@/lib/recipes/enrich'
 
-async function getUserId() {
+type RecipeForResponse = {
+  id: string
+  ingredients?: { name: string }[]
+  [key: string]: unknown
+}
+
+async function getOptionalUserId() {
   const supabase = await createSupabaseServerClient()
   const { data } = await supabase.auth.getUser()
-  if (!data.user) throw new Error('Unauthorized')
-  return data.user.id
+  return data.user?.id ?? null
 }
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+
+  // Public recipe browsing should not require auth — the previous version
+  // of this route rejected every request with 401 unless logged in, which
+  // is why recipe detail pages appeared broken/empty even for public
+  // recipes.
+  let userId: string | null = null
   try {
-    const userId = await getUserId()
-    const { id } = await params
-    const recipe = await prisma.recipe.findFirst({
-      where: { id, OR: [{ isPublic: true }, { userId }] },
-      include: { ingredients: true, steps: true },
-    })
-
-    if (!recipe) {
-      return NextResponse.json({ error: 'Recipe not found' }, { status: 404 })
-    }
-
-    return NextResponse.json(recipe)
+    userId = await getOptionalUserId()
   } catch {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    userId = null
   }
+
+  let recipe: RecipeForResponse | null = null
+  try {
+    if (id.startsWith('external-')) {
+      recipe = await getRecipeDetail(id.replace('external-', ''))
+    } else {
+      recipe = await prisma.recipe.findFirst({
+        where: userId ? { id, OR: [{ isPublic: true }, { userId }] } : { id, isPublic: true },
+        include: { ingredients: true, steps: true },
+      })
+    }
+  } catch (err) {
+    console.error('Failed to load recipe:', err)
+    return NextResponse.json({ error: 'Unable to load recipe right now' }, { status: 500 })
+  }
+
+  if (!recipe) {
+    return NextResponse.json({ error: 'Recipe not found' }, { status: 404 })
+  }
+
+  let pantryItems: { name: string; expirationDate: Date }[] = []
+  let isSaved = false
+  if (userId) {
+    try {
+      const [pantry, saved] = await Promise.all([
+        prisma.pantryItem.findMany({ where: { userId }, select: { name: true, expirationDate: true } }),
+        prisma.savedRecipe.findFirst({ where: { userId, recipeId: recipe.id } }),
+      ])
+      pantryItems = pantry
+      isSaved = Boolean(saved)
+    } catch {
+      // Non-fatal — the recipe itself still renders without pantry enrichment.
+    }
+  }
+
+  const match = matchIngredientsToPantry(recipe.ingredients ?? [], pantryItems)
+
+  return NextResponse.json({ ...recipe, ...match, isSaved })
 }
