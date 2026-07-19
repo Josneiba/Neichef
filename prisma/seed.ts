@@ -19,6 +19,9 @@ function makeDatabaseUrl(url: string) {
   }
 }
 
+if (process.env.PGSSLMODE === 'no-verify') {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
+}
 const adapter = new PrismaPg({ connectionString: makeDatabaseUrl(connectionString) })
 const prisma = new PrismaClient({ adapter })
 

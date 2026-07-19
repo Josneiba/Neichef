@@ -140,8 +140,8 @@ export async function GET(request: Request) {
     for (const r of [...normalizedDb, ...external]) {
       if (difficulty && r.difficulty && r.difficulty !== difficulty) continue
       if (costLevel && r.costLevel && r.costLevel !== costLevel) continue
-      const totalTime = (r.prepTimeMinutes ?? 0) + (r.cookTimeMinutes ?? 0)
-      if (maxTime !== undefined && totalTime > maxTime) continue
+      const totalTime = r.prepTimeMinutes != null && r.cookTimeMinutes != null ? r.prepTimeMinutes + r.cookTimeMinutes : undefined
+      if (maxTime !== undefined && totalTime !== undefined && totalTime > maxTime) continue
       if (!matchesFlavor(r, flavor)) continue
       if (!matchesMealType(r, mealType)) continue
       if (matchMode === 'exact' && !hasAllMainIngredients(r, pantryNames)) continue

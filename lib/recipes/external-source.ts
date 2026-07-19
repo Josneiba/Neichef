@@ -91,18 +91,22 @@ export function normalizeMealToRecipe(meal: MealDbMeal) {
   const steps = splitInstructionsIntoSteps(textField(meal.strInstructions)).map((instruction, idx) => ({ step: idx + 1, instruction }))
   const tags = textField(meal.strTags).split(',').filter(Boolean)
 
+  const estimatedTime = Math.max(15, Math.min(60, ingredients.length * 6))
+  const estimatedDifficulty = ingredients.length <= 5 ? 'easy' : ingredients.length <= 10 ? 'medium' : 'hard'
+  const estimatedCost = ingredients.length <= 4 ? 'low' : ingredients.length <= 8 ? 'medium' : 'high'
+
   return {
     id: `external-${textField(meal.idMeal)}`,
     externalId: textField(meal.idMeal),
     title: textField(meal.strMeal),
     description: `${textField(meal.strCategory)} ${textField(meal.strArea)}`.trim(),
-    prepTimeMinutes: 10,
-    cookTimeMinutes: 20,
+    prepTimeMinutes: Math.max(5, Math.round(estimatedTime * 0.4)),
+    cookTimeMinutes: Math.max(5, Math.round(estimatedTime * 0.6)),
     servings: Number(meal.servings ?? 2) || 2,
-    difficulty: 'medium',
+    difficulty: estimatedDifficulty,
     tags,
     imageUrl: textField(meal.strMealThumb) || undefined,
-    costLevel: 'medium',
+    costLevel: estimatedCost,
     ingredients: ingredients.map((ing) => ({ name: ing.name, amount: ing.amount, unit: ing.unit })),
     steps,
     isPublic: true,
