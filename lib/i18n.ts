@@ -1,0 +1,220 @@
+'use client'
+
+import { createContext, useCallback, useContext } from 'react'
+
+export const supportedLocales = ['en', 'es'] as const
+export type Locale = (typeof supportedLocales)[number]
+export const defaultLocale: Locale = 'en'
+
+export function resolveLocale(value?: string | string[] | null): Locale {
+  if (!value) return defaultLocale
+  const raw = Array.isArray(value) ? value[0] : value
+  const normalized = raw.toLowerCase().replace('_', '-').split('-')[0]
+  if (supportedLocales.includes(normalized as Locale)) {
+    return normalized as Locale
+  }
+  return defaultLocale
+}
+
+export const translations = {
+  en: {
+    dashboardOverview: 'Overview',
+    yourKitchen: 'Your Kitchen',
+    cookWithWhatYouHave: 'Cook with what you have',
+    findRecipesFromTheIngredients: 'Find recipes from the ingredients in front of you',
+    usePhotoOrTypeIngredients: 'Use a photo or type ingredients, then filter by sweet, savory, meal type, and time.',
+    takeAPhoto: 'Take a photo',
+    addIngredients: 'Add ingredients',
+    checkPantryToTakeAction: 'Check your pantry to take action.',
+    viewPantry: 'View pantry',
+    useFirst: 'Use first',
+    allItems: 'All items',
+    suggestedRecipes: 'Suggested recipes',
+    allRecipes: 'All recipes',
+    alerts: 'Alerts',
+    noNewAlerts: 'No new alerts.',
+    thisMonth: 'This month',
+    savedFromWaste: 'Saved from waste',
+    stillWasted: 'Still wasted',
+    itemsSaved: 'Items saved',
+    expiringSoon: 'Expiring soon',
+    viewFullReport: 'View full report',
+    inventory: 'Inventory',
+    pantry: 'Pantry',
+    itemsTotal: 'items total',
+    quickAddOptions: 'Quick add options',
+    chooseManualEntry: 'Choose manual entry, barcode scan, receipt import, or photo capture to log inventory faster.',
+    manualEntry: 'Manual entry',
+    scanBarcode: 'Scan barcode',
+    uploadReceipt: 'Upload receipt',
+    noItemsFound: 'No items found',
+    pantryEmptyDescription: 'Your pantry is empty, or no items match the current filters.',
+    addFirstItem: 'Add first item',
+    fresh: 'Fresh',
+    expiring: 'Expiring',
+    expired: 'Expired',
+    searchItemsPlaceholder: 'Search items...',
+    allCategories: 'All categories',
+    allLocations: 'All locations',
+    fridge: 'Fridge',
+    freezer: 'Freezer',
+    pantryLocation: 'Pantry',
+    recipeFinderTitle: 'Recipe finder',
+    whatCanWeCook: 'What can we cook?',
+    recipeFinderDescription: 'Add ingredients, choose a style, and NeiChef will suggest recipes.',
+    recipeFinderPhotoDescription: 'This does not save anything to pantry. It only detects possible ingredients for suggestions.',
+    choosePhoto: 'Choose photo',
+    ingredientsLabel: 'Ingredients',
+    separateIngredientsWithCommas: 'Separate ingredients with commas.',
+    styleLabel: 'Style',
+    mealLabel: 'Meal',
+    timeLabel: 'Time',
+    matchLabel: 'Match',
+    canIncludeExtras: 'Can include extras',
+    exactMainIngredients: 'Exact main ingredients',
+    showRecipes: 'Show recipes',
+    noIngredientsDetected: 'No ingredients were detected. Type them manually below.',
+    addAtLeastOneIngredient: 'Add at least one ingredient.',
+    searchRecipesPlaceholder: 'Chicken, tomato, rice...',
+    canIncludeExtrasOption: 'Can include extras',
+    exactMainIngredientsOption: 'Exact main ingredients',
+    findRecipesButton: 'Find recipes',
+    usePantryButton: 'Use pantry',
+    dashboard: 'Dashboard',
+    recipes: 'Recipes',
+    budget: 'Budget',
+    profile: 'Profile',
+    search: 'Search',
+    save: 'Save',
+    unsave: 'Unsave',
+    backToRecipes: 'Back to recipes',
+    ingredients: 'Ingredients',
+    method: 'Method',
+    cookModeBreaksMethod: 'Cook Mode breaks this method into guided steps with timers.',
+    startCookMode: 'Start Cook Mode',
+    readyToCook: 'Ready to cook?',
+    haveAllIngredientsReady: 'Do you have all ingredients, tools, and a clear workspace ready?',
+    yesStartCountdown: 'Yes, start countdown',
+    stepEstimate: 'Step estimate',
+    totalElapsed: 'Total elapsed',
+    finish: 'Finish',
+    nextStep: 'Seguimos',
+    mealCompleted: 'Meal completed',
+    estimated: 'Estimated',
+    youTook: 'You took',
+    backToKitchen: 'Back to kitchen',
+  },
+  es: {
+    dashboardOverview: 'Resumen',
+    yourKitchen: 'Tu cocina',
+    cookWithWhatYouHave: 'Cocina con lo que tienes',
+    findRecipesFromTheIngredients: 'Encuentra recetas con los ingredientes que tienes delante',
+    usePhotoOrTypeIngredients: 'Usa una foto o escribe ingredientes, luego filtra por dulce, salado, tipo de comida y tiempo.',
+    takeAPhoto: 'Tomar una foto',
+    addIngredients: 'Agregar ingredientes',
+    checkPantryToTakeAction: 'Revisa tu despensa para tomar acción.',
+    viewPantry: 'Ver despensa',
+    useFirst: 'Usar primero',
+    allItems: 'Todos los elementos',
+    suggestedRecipes: 'Recetas sugeridas',
+    allRecipes: 'Todas las recetas',
+    alerts: 'Alertas',
+    noNewAlerts: 'No hay alertas nuevas.',
+    thisMonth: 'Este mes',
+    savedFromWaste: 'Ahorro de desperdicio',
+    stillWasted: 'Aún desperdiciado',
+    itemsSaved: 'Artículos guardados',
+    expiringSoon: 'Por vencer pronto',
+    viewFullReport: 'Ver informe completo',
+    inventory: 'Inventario',
+    pantry: 'Despensa',
+    itemsTotal: 'elementos en total',
+    quickAddOptions: 'Opciones rápidas de agregar',
+    chooseManualEntry: 'Elige entrada manual, escanear código de barras, importar recibo o tomar foto para registrar inventario más rápido.',
+    manualEntry: 'Entrada manual',
+    scanBarcode: 'Escanear código de barras',
+    uploadReceipt: 'Subir recibo',
+    noItemsFound: 'No se encontraron elementos',
+    pantryEmptyDescription: 'Tu despensa está vacía o ningún elemento coincide con los filtros actuales.',
+    addFirstItem: 'Agregar primer elemento',
+    fresh: 'Fresco',
+    expiring: 'Por vencer',
+    expired: 'Vencido',
+    searchItemsPlaceholder: 'Buscar elementos...',
+    allCategories: 'Todas las categorías',
+    allLocations: 'Todas las ubicaciones',
+    fridge: 'Refrigerador',
+    freezer: 'Congelador',
+    pantryLocation: 'Despensa',
+    recipeFinderTitle: 'Buscador de recetas',
+    whatCanWeCook: '¿Qué podemos cocinar?',
+    recipeFinderDescription: 'Agrega ingredientes, elige un estilo y NeiChef sugerirá recetas.',
+    recipeFinderPhotoDescription: 'Esto no guarda nada en la despensa. Solo detecta los ingredientes posibles para sugerencias.',
+    choosePhoto: 'Elegir foto',
+    ingredientsLabel: 'Ingredientes',
+    separateIngredientsWithCommas: 'Separe los ingredientes con comas.',
+    styleLabel: 'Estilo',
+    mealLabel: 'Comida',
+    timeLabel: 'Tiempo',
+    matchLabel: 'Coincidencia',
+    canIncludeExtras: 'Puede incluir extras',
+    exactMainIngredients: 'Ingredientes principales exactos',
+    showRecipes: 'Mostrar recetas',
+    noIngredientsDetected: 'No se detectaron ingredientes. Escríbelos manualmente abajo.',
+    addAtLeastOneIngredient: 'Agrega al menos un ingrediente.',
+    searchRecipesPlaceholder: 'Pollo, tomate, arroz...',
+    canIncludeExtrasOption: 'Puede incluir extras',
+    exactMainIngredientsOption: 'Ingredientes principales exactos',
+    findRecipesButton: 'Buscar recetas',
+    usePantryButton: 'Usar despensa',
+    dashboard: 'Inicio',
+    recipes: 'Recetas',
+    budget: 'Presupuesto',
+    profile: 'Perfil',
+    search: 'Buscar',
+    save: 'Guardar',
+    unsave: 'Eliminar guardado',
+    backToRecipes: 'Volver a recetas',
+    ingredients: 'Ingredientes',
+    method: 'Método',
+    cookModeBreaksMethod: 'Cook Mode divide este método en pasos guiados con temporizadores.',
+    startCookMode: 'Iniciar modo de cocina',
+    readyToCook: '¿Listo para cocinar?',
+    haveAllIngredientsReady: '¿Tienes todos los ingredientes, herramientas y un espacio de trabajo despejado?',
+    yesStartCountdown: 'Sí, iniciar cuenta atrás',
+    stepEstimate: 'Estimado del paso',
+    totalElapsed: 'Tiempo transcurrido',
+    finish: 'Finalizar',
+    nextStep: 'Seguimos',
+    mealCompleted: 'Comida completada',
+    estimated: 'Estimado',
+    youTook: 'Tomaste',
+    backToKitchen: 'Volver a la cocina',
+  },
+} as const
+
+export type TranslationKey = keyof typeof translations['en']
+
+export function translate(key: TranslationKey, locale: Locale): string {
+  return translations[locale]?.[key] ?? translations.en[key] ?? key
+}
+
+interface LocaleContextValue {
+  locale: Locale
+  t: (key: TranslationKey) => string
+  setLocale: (locale: Locale) => void
+}
+
+export const LocaleContext = createContext<LocaleContextValue>({
+  locale: defaultLocale,
+  t: (key) => translations.en[key] ?? key,
+  setLocale: () => undefined,
+})
+
+export function useTranslation() {
+  return useContext(LocaleContext)
+}
+
+export function useT() {
+  return useContext(LocaleContext).t
+}

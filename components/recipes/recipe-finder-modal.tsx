@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AlertCircle, Camera, Loader2, Search, X } from 'lucide-react'
+import { useT } from '@/lib/i18n'
 
 type FinderMode = 'photo' | 'ingredients'
 type Flavor = 'any' | 'sweet' | 'savory'
@@ -31,6 +32,7 @@ function parseIngredients(text: string) {
 }
 
 export function RecipeFinderModal({ initialMode, onClose }: RecipeFinderModalProps) {
+  const t = useT()
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [mode, setMode] = useState<FinderMode>(initialMode)
@@ -55,18 +57,18 @@ export function RecipeFinderModal({ initialMode, onClose }: RecipeFinderModalPro
         body: JSON.stringify({ imageBase64 }),
       })
       const payload = await response.json().catch(() => ({}))
-      if (!response.ok) throw new Error(payload.error ?? 'Could not detect ingredients from this photo.')
+      if (!response.ok) throw new Error(payload.error ?? t('noIngredientsDetected'))
       const names = Array.isArray(payload.items)
         ? payload.items.map((item: { name?: string }) => item.name).filter(Boolean)
         : []
       if (names.length === 0) {
-        setError('No ingredients were detected. Type them manually below.')
+        setError(t('noIngredientsDetected'))
       } else {
         setIngredientText(names.join(', '))
         setMode('ingredients')
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Photo detection failed.')
+      setError(err instanceof Error ? err.message : t('noIngredientsDetected'))
     } finally {
       setIsDetecting(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
@@ -76,7 +78,7 @@ export function RecipeFinderModal({ initialMode, onClose }: RecipeFinderModalPro
   function findRecipes() {
     const ingredients = parseIngredients(ingredientText)
     if (ingredients.length === 0) {
-      setError('Add at least one ingredient.')
+      setError(t('addAtLeastOneIngredient'))
       return
     }
     const params = new URLSearchParams({
@@ -95,9 +97,9 @@ export function RecipeFinderModal({ initialMode, onClose }: RecipeFinderModalPro
       <div className="w-full max-w-lg rounded-lg border border-border bg-card shadow-xl">
         <div className="flex items-start justify-between border-b border-border p-5">
           <div>
-            <p className="text-xs uppercase tracking-widest text-muted-foreground">Recipe finder</p>
-            <h2 className="font-serif text-xl text-foreground mt-1">What can we cook?</h2>
-            <p className="text-sm text-muted-foreground mt-1">Add ingredients, choose a style, and NeiChef will suggest recipes.</p>
+            <p className="text-xs uppercase tracking-widest text-muted-foreground">{t('recipeFinderTitle')}</p>
+            <h2 className="font-serif text-xl text-foreground mt-1">{t('whatCanWeCook')}</h2>
+            <p className="text-sm text-muted-foreground mt-1">{t('recipeFinderDescription')}</p>
           </div>
           <button type="button" onClick={onClose} className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Close">
             <X className="h-4 w-4" strokeWidth={1.7} />
@@ -111,14 +113,14 @@ export function RecipeFinderModal({ initialMode, onClose }: RecipeFinderModalPro
               onClick={() => setMode('photo')}
               className={`rounded-md border px-3 py-2 text-sm font-medium ${mode === 'photo' ? 'border-primary bg-primary text-primary-foreground' : 'border-border text-foreground hover:bg-muted'}`}
             >
-              Take a photo
+              {t('takeAPhoto')}
             </button>
             <button
               type="button"
               onClick={() => setMode('ingredients')}
               className={`rounded-md border px-3 py-2 text-sm font-medium ${mode === 'ingredients' ? 'border-primary bg-primary text-primary-foreground' : 'border-border text-foreground hover:bg-muted'}`}
             >
-              Add ingredients
+              {t('addIngredients')}
             </button>
           </div>
 
@@ -126,7 +128,7 @@ export function RecipeFinderModal({ initialMode, onClose }: RecipeFinderModalPro
             <div className="rounded-lg border border-dashed border-border bg-background p-4 text-center">
               <Camera className="mx-auto mb-2 h-7 w-7 text-muted-foreground" strokeWidth={1.5} />
               <p className="text-sm font-medium text-foreground">Photograph ingredients for recipe ideas</p>
-              <p className="text-xs text-muted-foreground mt-1">This does not save anything to pantry. It only detects possible ingredients for suggestions.</p>
+              <p className="text-xs text-muted-foreground mt-1">{t('recipeFinderPhotoDescription')}</p>
               <input ref={fileInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(event) => void handlePhoto(event.target.files?.[0])} />
               <button
                 type="button"
@@ -135,26 +137,26 @@ export function RecipeFinderModal({ initialMode, onClose }: RecipeFinderModalPro
                 className="mt-3 inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
               >
                 {isDetecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
-                {isDetecting ? 'Detecting...' : 'Choose photo'}
+                {isDetecting ? 'Detecting...' : t('choosePhoto')}
               </button>
             </div>
           )}
 
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-foreground">Ingredients</label>
+            <label className="mb-1.5 block text-xs font-medium text-foreground">{t('ingredientsLabel')}</label>
             <textarea
               value={ingredientText}
               onChange={(event) => setIngredientText(event.target.value)}
               rows={3}
-              placeholder="Chicken, rice, tomato, egg..."
+              placeholder={t('searchRecipesPlaceholder')}
               className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
             />
-            <p className="mt-1 text-xs text-muted-foreground">Separate ingredients with commas.</p>
+            <p className="mt-1 text-xs text-muted-foreground">{t('separateIngredientsWithCommas')}</p>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block">
-              <span className="mb-1.5 block text-xs font-medium text-foreground">Style</span>
+              <span className="mb-1.5 block text-xs font-medium text-foreground">{t('styleLabel')}</span>
               <select value={flavor} onChange={(event) => setFlavor(event.target.value as Flavor)} className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm">
                 <option value="any">Any</option>
                 <option value="savory">Savory</option>
@@ -162,7 +164,7 @@ export function RecipeFinderModal({ initialMode, onClose }: RecipeFinderModalPro
               </select>
             </label>
             <label className="block">
-              <span className="mb-1.5 block text-xs font-medium text-foreground">Meal</span>
+              <span className="mb-1.5 block text-xs font-medium text-foreground">{t('mealLabel')}</span>
               <select value={mealType} onChange={(event) => setMealType(event.target.value as MealType)} className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm">
                 <option value="any">Any meal</option>
                 <option value="breakfast">Breakfast</option>
@@ -173,7 +175,7 @@ export function RecipeFinderModal({ initialMode, onClose }: RecipeFinderModalPro
               </select>
             </label>
             <label className="block">
-              <span className="mb-1.5 block text-xs font-medium text-foreground">Time</span>
+              <span className="mb-1.5 block text-xs font-medium text-foreground">{t('timeLabel')}</span>
               <select value={maxTime} onChange={(event) => setMaxTime(event.target.value)} className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm">
                 <option value="any">Any time</option>
                 <option value="20">Under 20 min</option>
@@ -183,10 +185,10 @@ export function RecipeFinderModal({ initialMode, onClose }: RecipeFinderModalPro
               </select>
             </label>
             <label className="block">
-              <span className="mb-1.5 block text-xs font-medium text-foreground">Match</span>
+              <span className="mb-1.5 block text-xs font-medium text-foreground">{t('matchLabel')}</span>
               <select value={matchMode} onChange={(event) => setMatchMode(event.target.value as MatchMode)} className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm">
-                <option value="flexible">Can include extras</option>
-                <option value="exact">Exact main ingredients</option>
+                <option value="flexible">{t('canIncludeExtrasOption')}</option>
+                <option value="exact">{t('exactMainIngredientsOption')}</option>
               </select>
             </label>
           </div>
@@ -200,7 +202,7 @@ export function RecipeFinderModal({ initialMode, onClose }: RecipeFinderModalPro
 
           <button type="button" onClick={findRecipes} className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90">
             <Search className="h-4 w-4" />
-            Show recipes
+            {t('findRecipesButton')}
           </button>
         </div>
       </div>
