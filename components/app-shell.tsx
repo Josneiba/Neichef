@@ -15,12 +15,12 @@ import {
   TrendingUp,
 } from 'lucide-react'
 import { useState } from 'react'
+import type { Notification } from '@/lib/types'
 
 const bottomNavItems = [
   { href: '/app', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/app/pantry', label: 'Pantry', icon: Package },
   { href: '/app/recipes', label: 'Recipes', icon: BookOpen },
-  { href: '/app/notifications', label: 'Notifications', icon: Bell },
 ]
 
 const moreMenuItems = [
@@ -34,21 +34,81 @@ const desktopNavItems = [...bottomNavItems, ...moreMenuItems]
 interface AppShellProps {
   children: React.ReactNode
   unreadCount?: number
+  notifications?: Notification[]
+  markRead?: (id: string) => Promise<void>
+  markAllRead?: () => Promise<void>
 }
 
-export function AppShell({ children, unreadCount = 0 }: AppShellProps) {
+export function AppShell({ children, unreadCount = 0, notifications = [], markRead, markAllRead }: AppShellProps) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [alertsOpen, setAlertsOpen] = useState(false)
+  const recentNotifications = notifications.slice(0, 6)
+
+  function AlertsButton() {
+    return (
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setAlertsOpen((open) => !open)}
+          className="relative inline-flex h-9 w-9 items-center justify-center rounded-md text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+          aria-label="Open notifications"
+        >
+          <Bell className="h-4 w-4" strokeWidth={1.5} />
+          {unreadCount > 0 && (
+            <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-medium text-primary-foreground">
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </span>
+          )}
+        </button>
+        {alertsOpen && (
+          <div className="absolute right-0 top-11 z-50 w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-card p-3 shadow-lg lg:left-0 lg:right-auto">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="font-serif text-base text-foreground">Alerts</p>
+              {unreadCount > 0 && markAllRead && (
+                <button type="button" onClick={() => void markAllRead()} className="text-xs text-muted-foreground hover:text-foreground">
+                  Mark all read
+                </button>
+              )}
+            </div>
+            {recentNotifications.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">No notifications right now.</p>
+            ) : (
+              <div className="max-h-80 overflow-auto">
+                {recentNotifications.map((notification) => (
+                  <button
+                    key={notification.id}
+                    type="button"
+                    onClick={() => notification.isRead ? undefined : void markRead?.(notification.id)}
+                    className="block w-full border-b border-border px-1 py-2.5 text-left last:border-0 hover:bg-muted/40"
+                  >
+                    <div className="flex items-start gap-2">
+                      {!notification.isRead && <span className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-primary" />}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-medium text-foreground">{notification.title}</p>
+                        <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-muted-foreground">{notification.message}</p>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen flex bg-background">
       {/* Desktop Sidebar */}
       <aside className="hidden lg:flex flex-col w-60 min-h-screen bg-sidebar border-r border-sidebar-border flex-shrink-0 fixed left-0 top-0 bottom-0 z-30">
         {/* Logo */}
-        <div className="px-6 py-8 border-b border-sidebar-border">
+        <div className="flex items-center justify-between px-6 py-8 border-b border-sidebar-border">
           <Link href="/" className="flex items-center gap-2.5">
             <span className="font-serif text-xl text-sidebar-foreground tracking-tight">NeiChef</span>
           </Link>
+          <AlertsButton />
         </div>
 
         {/* Nav items */}
@@ -68,31 +128,10 @@ export function AppShell({ children, unreadCount = 0 }: AppShellProps) {
               >
                 <Icon className="w-4 h-4 flex-shrink-0" strokeWidth={1.5} />
                 <span>{label}</span>
-                {label === 'Notifications' && unreadCount > 0 && (
-                  <span className="ml-auto bg-primary text-primary-foreground text-xs rounded-full w-5 h-5 flex items-center justify-center font-medium">
-                    {unreadCount > 9 ? '9+' : unreadCount}
-                  </span>
-                )}
               </Link>
             )
           })}
         </nav>
-
-        {/* Search at bottom */}
-        <div className="px-3 pb-6">
-          <Link
-            href="/app/search"
-            className={cn(
-              'flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors w-full',
-              pathname === '/app/search'
-                ? 'bg-sidebar-accent text-sidebar-foreground font-medium'
-                : 'text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
-            )}
-          >
-            <Search className="w-4 h-4 flex-shrink-0" strokeWidth={1.5} />
-            <span>Search</span>
-          </Link>
-        </div>
       </aside>
 
       {/* Mobile Header */}
@@ -102,6 +141,7 @@ export function AppShell({ children, unreadCount = 0 }: AppShellProps) {
             NeiChef
           </Link>
           <div className="flex items-center gap-3">
+            <AlertsButton />
             <Link href="/app/search" className="text-sidebar-foreground/60 hover:text-sidebar-foreground">
               <Search className="w-5 h-5" strokeWidth={1.5} />
             </Link>
@@ -134,11 +174,6 @@ export function AppShell({ children, unreadCount = 0 }: AppShellProps) {
                 >
                   <Icon className="w-4 h-4 flex-shrink-0" strokeWidth={1.5} />
                   <span>{label}</span>
-                  {label === 'Notifications' && unreadCount > 0 && (
-                    <span className="ml-auto bg-primary text-primary-foreground text-xs rounded-full w-5 h-5 flex items-center justify-center font-medium">
-                      {unreadCount}
-                    </span>
-                  )}
                 </Link>
               )
             })}
@@ -169,11 +204,6 @@ export function AppShell({ children, unreadCount = 0 }: AppShellProps) {
               >
                 <div className="relative">
                   <Icon className="w-5 h-5" strokeWidth={1.5} />
-                  {label === 'Notifications' && unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[10px] rounded-full w-4 h-4 flex items-center justify-center font-medium">
-                      {unreadCount > 9 ? '9+' : unreadCount}
-                    </span>
-                  )}
                 </div>
                 <span className="text-[10px] font-medium">{label}</span>
               </Link>

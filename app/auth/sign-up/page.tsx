@@ -58,9 +58,24 @@ export default function SignUpPage() {
         <div className="mb-8">
           <span className="font-serif text-2xl text-foreground">NeiChef</span>
           <h1 className="font-serif text-3xl text-foreground mt-4 mb-2">Create your account</h1>
-          <p className="text-sm text-muted-foreground">Set up your household profile and start tracking food with confidence.</p>
+          <p className="text-sm text-muted-foreground">Create your household profile. After this, confirm your email and NeiChef will finish setup automatically.</p>
         </div>
 
+        {submitted ? (
+          <div className="rounded-lg border border-primary/30 bg-primary/5 p-5 text-sm text-foreground">
+            <p className="font-medium">Check your email to confirm your account</p>
+            <p className="mt-2 text-muted-foreground leading-relaxed">{successMessage}</p>
+            <ol className="mt-4 space-y-2 text-muted-foreground">
+              <li>1. Open the email from Supabase/NeiChef.</li>
+              <li>2. Click the confirmation link.</li>
+              <li>3. You will see a confirmation screen, then you can enter NeiChef.</li>
+            </ol>
+            <p className="mt-4 text-xs text-muted-foreground">If the link opens localhost, that is correct while you are testing locally on this computer.</p>
+            <Link href="/auth/sign-in" className="mt-5 inline-flex w-full items-center justify-center rounded-md bg-primary px-4 py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+              I confirmed, sign in
+            </Link>
+          </div>
+        ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-xs font-medium text-foreground mb-1.5">Full name</label>
@@ -93,17 +108,11 @@ export default function SignUpPage() {
             </select>
           </div>
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
-          {submitted ? (
-            <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 text-sm text-foreground">
-              {successMessage}
-              <p className="mt-2 text-muted-foreground">Si no ves el correo en unos minutos, revisa tu carpeta de spam.</p>
-            </div>
-          ) : (
-            <button type="submit" className="w-full bg-primary text-primary-foreground py-3 rounded-md text-sm font-medium hover:bg-primary/90 transition-colors">
-              Create account
-            </button>
-          )}
+          <button type="submit" className="w-full bg-primary text-primary-foreground py-3 rounded-md text-sm font-medium hover:bg-primary/90 transition-colors">
+            Create account
+          </button>
         </form>
+        )}
 
         <p className="text-sm text-center text-muted-foreground mt-6">
           Already have an account?{' '}

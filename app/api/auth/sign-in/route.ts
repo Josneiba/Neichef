@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { ensureUserProfile } from '@/lib/auth/profile'
 
 const signInSchema = z.object({
   email: z.string().email(),
@@ -29,6 +30,14 @@ export async function POST(request: Request) {
 
   if (error) {
     return NextResponse.json({ error: error.message ?? 'Unable to sign in' }, { status: 400 })
+  }
+
+  if (data.user) {
+    try {
+      await ensureUserProfile(data.user, { email })
+    } catch (err) {
+      console.error('[auth:sign-in] signed in but profile repair failed', err)
+    }
   }
 
   return NextResponse.json({ success: true, user: data.user })

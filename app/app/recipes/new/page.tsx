@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useRecipes } from '@/lib/hooks'
-import { ArrowLeft, Plus, Trash2, Loader2 } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Loader2, FileText } from 'lucide-react'
 import type { RecipeDifficulty } from '@/lib/types'
 
 type DraftIngredient = { name: string; amount: string; unit: string }
@@ -36,6 +36,44 @@ export default function NewRecipePage() {
   }
   function updateStep(index: number, patch: Partial<DraftStep>) {
     setSteps((prev) => prev.map((step, i) => (i === index ? { ...step, ...patch } : step)))
+  }
+
+  async function importDocument(file: File | undefined) {
+    if (!file) return
+    if (!/\.(txt|md)$/i.test(file.name)) {
+      setError('For now, recipe import supports .txt and .md files. Photo OCR needs a dedicated OCR provider.')
+      return
+    }
+    const text = await file.text()
+    const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+    if (lines.length === 0) return
+
+    const ingredientStart = lines.findIndex((line) => /^ingredients?:?$/i.test(line))
+    const methodStart = lines.findIndex((line) => /^(method|instructions?|directions?):?$/i.test(line))
+    const titleLine = lines.find((line, index) => index !== ingredientStart && index !== methodStart) ?? file.name.replace(/\.(txt|md)$/i, '')
+
+    const ingredientLines = ingredientStart >= 0
+      ? lines.slice(ingredientStart + 1, methodStart > ingredientStart ? methodStart : undefined)
+      : []
+    const methodLines = methodStart >= 0 ? lines.slice(methodStart + 1) : []
+
+    setTitle(titleLine.replace(/^#+\s*/, ''))
+    setDescription(`Imported from ${file.name}`)
+    if (ingredientLines.length > 0) {
+      setIngredients(ingredientLines.map((line) => {
+        const clean = line.replace(/^[-*\d.)\s]+/, '')
+        const match = clean.match(/^(\d+(?:\.\d+)?|\d+\/\d+)?\s*([a-zA-Z]+|tsp|tbsp|g|kg|ml|l|cup|cups)?\s+(.+)$/)
+        return {
+          amount: match?.[1] ?? '1',
+          unit: match?.[2] ?? 'pcs',
+          name: (match?.[3] ?? clean).trim(),
+        }
+      }))
+    }
+    if (methodLines.length > 0) {
+      setSteps(methodLines.map((line) => ({ instruction: line.replace(/^[-*\d.)\s]+/, ''), durationMinutes: '' })))
+    }
+    setError('')
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -90,6 +128,20 @@ export default function NewRecipePage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="rounded-lg border border-border bg-card p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-medium text-foreground">Import from document</p>
+              <p className="text-xs text-muted-foreground mt-1">Upload a .txt or .md recipe with Ingredients and Method sections.</p>
+            </div>
+            <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-muted">
+              <FileText className="h-4 w-4" strokeWidth={1.6} />
+              Upload
+              <input type="file" accept=".txt,.md,text/plain,text/markdown" className="hidden" onChange={(event) => void importDocument(event.target.files?.[0])} />
+            </label>
+          </div>
+        </div>
+
         <div>
           <label className={labelClass}>Title *</label>
           <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Weeknight garlic pasta" className={inputClass} />

@@ -10,6 +10,7 @@ type AddMode = 'manual' | 'photo' | 'barcode' | 'receipt'
 
 interface AddItemModalProps {
   onClose: () => void
+  initialMode?: AddMode
 }
 
 type ReviewItem = {
@@ -147,9 +148,9 @@ function ReviewList({ items, onChange }: { items: ReviewItem[]; onChange: (items
   )
 }
 
-export function AddItemModal({ onClose }: AddItemModalProps) {
+export function AddItemModal({ onClose, initialMode = 'manual' }: AddItemModalProps) {
   const { addItem } = usePantry()
-  const [mode, setMode] = useState<AddMode>('manual')
+  const [mode, setMode] = useState<AddMode>(initialMode)
 
   // Manual form state
   const [name, setName] = useState('')

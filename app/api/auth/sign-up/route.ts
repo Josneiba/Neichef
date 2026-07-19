@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { prisma } from '@/lib/prisma'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { env } from '@/lib/env'
+import { ensureUserProfile } from '@/lib/auth/profile'
 
 const signUpSchema = z.object({
   name: z.string().min(2),
@@ -47,33 +47,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: message }, { status: 400 })
   }
 
-  // Create (or repair) the matching application-database row. This is
-  // best-effort and must not fail the whole signup: the Supabase Auth user
-  // already exists at this point, so a DB hiccup here should not strand the
-  // person with an auth account but no way to log in. `upsert` also makes
-  // this safe to call again if a previous signup attempt partially failed.
+  // Create (or repair) the matching application-database row. If a previous
+  // attempt created a Supabase Auth user but failed before creating the app
+  // profile, ensureUserProfile() makes this retry safe and recoverable.
   try {
-    await prisma.user.upsert({
-      where: { id: authData.user.id },
-      update: {},
-      create: {
-        id: authData.user.id,
-        email,
-        name,
-        householdSize,
-        dietaryPreferences: [],
-        notificationDaysAhead: 3,
-      },
-    })
+    await ensureUserProfile(authData.user, { name, email, householdSize })
     console.info('[auth:sign-up] application profile ready', { userId: authData.user.id, confirmed: Boolean(authData.session) })
   } catch (err) {
     console.error('Failed to create application user row during sign-up:', err)
     return NextResponse.json(
       {
-        error:
-          'Your account was created but we could not finish setting up your profile. Please try signing in — if this keeps happening, contact support.',
+        success: true,
+        confirmed: false,
+        message:
+          'Tu cuenta fue creada. Confirma el correo que te enviamos; cuando inicies sesión, NeiChef terminará de preparar tu perfil automáticamente.',
       },
-      { status: 500 },
+      { status: 200 },
     )
   }
 

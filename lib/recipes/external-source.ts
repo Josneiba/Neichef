@@ -30,13 +30,43 @@ function ingredientSearchTerms(name: string) {
   return [...new Set(terms)].map((term) => term.replace(/\s+/g, '_'))
 }
 
+function parseMeasure(measure: string) {
+  const trimmed = measure.trim()
+  if (!trimmed) return { amount: 1, unit: 'pcs' }
+
+  const fractionMap: Record<string, number> = {
+    '¼': 0.25,
+    '½': 0.5,
+    '¾': 0.75,
+    '⅓': 1 / 3,
+    '⅔': 2 / 3,
+  }
+  const unicodeFraction = fractionMap[trimmed[0]]
+  if (unicodeFraction) {
+    return { amount: unicodeFraction, unit: trimmed.slice(1).trim() || 'pcs' }
+  }
+
+  const match = trimmed.match(/^(\d+(?:\.\d+)?|\d+\/\d+)\s*(.*)$/)
+  if (!match) return { amount: 1, unit: trimmed }
+
+  const rawAmount = match[1]
+  const amount = rawAmount.includes('/')
+    ? rawAmount.split('/').map(Number).reduce((a, b) => (b ? a / b : a))
+    : Number(rawAmount)
+
+  return {
+    amount: Number.isFinite(amount) && amount > 0 ? amount : 1,
+    unit: match[2].trim() || 'pcs',
+  }
+}
+
 export function splitInstructionsIntoSteps(text: string): string[] {
   if (!text) return []
   // Split on newlines or sentence endings. Keep it simple and robust.
   return text
     .split(/\r?\n|(?<=[.!?])\s+/)
     .map((s) => s.trim())
-    .filter(Boolean)
+    .filter((step) => step && !/^\d+\.?$/.test(step))
 }
 
 export function normalizeMealToRecipe(meal: MealDbMeal) {
@@ -45,7 +75,7 @@ export function normalizeMealToRecipe(meal: MealDbMeal) {
     const name = String(meal[`strIngredient${i}`] ?? '').trim()
     const measure = String(meal[`strMeasure${i}`] ?? '').trim()
     if (name) {
-      ingredients.push({ name, amount: 1, unit: measure })
+      ingredients.push({ name, ...parseMeasure(measure) })
     }
   }
 
@@ -72,10 +102,15 @@ export function normalizeMealToRecipe(meal: MealDbMeal) {
 
 export async function getRecipeDetail(externalId: string) {
   // Try DB cache first
-  const cached = await prisma.recipe.findFirst({ where: { externalId, source: 'external' }, include: { ingredients: true, steps: true } })
-  if (cached) return cached
+  try {
+    const cached = await prisma.recipe.findFirst({ where: { externalId, source: 'external' }, include: { ingredients: true, steps: true } })
+    if (cached) return cached
+  } catch (err) {
+    console.warn('[recipes:external] cache lookup failed; fetching from TheMealDB only', { externalId, err })
+  }
 
   const res = await fetch(`https://www.themealdb.com/api/json/v1/1/lookup.php?i=${encodeURIComponent(externalId)}`)
+  if (!res.ok) return null
   const data = await res.json()
   const meal = data?.meals?.[0]
   if (!meal) return null

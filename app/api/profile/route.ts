@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { ensureUserProfile } from '@/lib/auth/profile'
 
 const profileSchema = z.object({
   name: z.string().optional(),
@@ -11,21 +12,18 @@ const profileSchema = z.object({
   notificationDaysAhead: z.number().int().min(1).max(14).optional(),
 })
 
-async function getUserId() {
+async function getAuthUser() {
   const supabase = await createSupabaseServerClient()
   const { data } = await supabase.auth.getUser()
   if (!data.user) throw new Error('Unauthorized')
-  return data.user.id
+  return data.user
 }
 
 export async function GET() {
   try {
-    const userId = await getUserId()
-    const profile = await prisma.user.findUnique({ where: { id: userId } })
-    if (!profile) {
-      console.warn('[profile:get] profile not found', { userId })
-      return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
-    }
+    const user = await getAuthUser()
+    const profile = await ensureUserProfile(user)
+    const userId = user.id
     console.info('[profile:get] loaded profile', { userId })
     return NextResponse.json(profile)
   } catch (err) {
@@ -36,7 +34,9 @@ export async function GET() {
 
 export async function PATCH(request: Request) {
   try {
-    const userId = await getUserId()
+    const user = await getAuthUser()
+    await ensureUserProfile(user)
+    const userId = user.id
     const body = await request.json()
     const parsed = profileSchema.safeParse(body)
     if (!parsed.success) {

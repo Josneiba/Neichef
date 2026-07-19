@@ -1,6 +1,7 @@
 import { type EmailOtpType } from '@supabase/supabase-js'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { ensureUserProfile } from '@/lib/auth/profile'
 
 // Supabase's default "Confirm signup" / "Magic link" email templates point
 // at `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type={{ .Type }}`.
@@ -19,10 +20,17 @@ export async function GET(request: NextRequest) {
 
   if (tokenHash && type) {
     const supabase = await createSupabaseServerClient()
-    const { error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash })
+    const { data, error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash })
 
     if (!error) {
-      return NextResponse.redirect(new URL(next, request.url))
+      if (data.user) {
+        try {
+          await ensureUserProfile(data.user)
+        } catch (err) {
+          console.error('[auth:confirm] profile repair failed after confirmation', err)
+        }
+      }
+      return NextResponse.redirect(new URL(`/auth/confirmed?next=${encodeURIComponent(next)}`, request.url))
     }
 
     return NextResponse.redirect(

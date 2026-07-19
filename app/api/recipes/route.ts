@@ -7,6 +7,7 @@ import { matchIngredientsToPantry } from '@/lib/recipes/enrich'
 
 type RecipeForResponse = {
   id: string
+  userId?: string | null
   ingredients: { name: string }[]
   [key: string]: unknown
 }
@@ -73,7 +74,7 @@ export async function GET() {
   if (recipes && recipes.length > 0) {
     const enriched = recipes.map((recipe) => {
       const match = matchIngredientsToPantry(recipe.ingredients, pantryItems)
-      return { ...recipe, ...match, isSaved: savedIds.has(recipe.id) }
+      return { ...recipe, ...match, isSaved: savedIds.has(recipe.id), isOwner: Boolean(userId && recipe.userId === userId) }
     })
     return apiSuccess(enriched)
   }
@@ -84,7 +85,7 @@ export async function GET() {
     console.info('[recipes:list] serving external fallback recipes', { count: externalNoDb.length })
     const enriched = externalNoDb.map((recipe) => {
       const match = matchIngredientsToPantry(recipe.ingredients as { name: string }[], pantryItems)
-      return { ...recipe, ...match, isSaved: savedIds.has(recipe.id) }
+      return { ...recipe, ...match, isSaved: savedIds.has(recipe.id), isOwner: false }
     })
     return apiSuccess(enriched)
   }
@@ -140,13 +141,14 @@ export async function POST(request: Request) {
         difficulty: parsed.data.difficulty,
         tags: parsed.data.tags,
         costLevel: parsed.data.costLevel,
+        isPublic: false,
         ingredients: { create: parsed.data.ingredients.map((ingredient) => ({ name: ingredient.name, amount: ingredient.amount, unit: ingredient.unit })) },
         steps: { create: parsed.data.steps.map((step) => ({ step: step.step, instruction: step.instruction, durationMinutes: step.durationMinutes })) },
       },
       include: { ingredients: true, steps: true },
     })
 
-    return apiSuccess(recipe, 201)
+    return apiSuccess({ ...recipe, isOwner: true, isSaved: false }, 201)
   } catch {
     return apiError('Unauthorized', 'UNAUTHORIZED')
   }

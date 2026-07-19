@@ -17,6 +17,21 @@ const STAPLE_INGREDIENTS = [
   'cooking oil',
   'oil',
   'cooking spray',
+  'oregano',
+  'dried oregano',
+  'paprika',
+  'smoked paprika',
+  'red pepper flakes',
+  'chili flakes',
+  'parsley',
+  'basil',
+  'thyme',
+  'rosemary',
+  'cumin',
+  'cinnamon',
+  'nutmeg',
+  'bay leaf',
+  'bay leaves',
 ]
 
 const DESCRIPTOR_WORDS = new Set([

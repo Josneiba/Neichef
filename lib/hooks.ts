@@ -83,12 +83,21 @@ export function useRecipes() {
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false)
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set())
 
-  const loadSuggestions = useCallback(async (options?: { ingredients?: string[]; matchMode?: 'flexible' | 'exact' }) => {
+  const loadSuggestions = useCallback(async (options?: {
+    ingredients?: string[]
+    matchMode?: 'flexible' | 'exact'
+    maxTimeMinutes?: string
+    flavor?: 'any' | 'sweet' | 'savory'
+    mealType?: 'any' | 'breakfast' | 'lunch' | 'dinner' | 'snack' | 'dessert'
+  }) => {
     setIsLoadingSuggestions(true)
     setSuggestionError(null)
     const params = new URLSearchParams()
     if (options?.ingredients?.length) params.set('ingredients', options.ingredients.join(','))
     if (options?.matchMode) params.set('matchMode', options.matchMode)
+    if (options?.maxTimeMinutes && options.maxTimeMinutes !== 'any') params.set('maxTimeMinutes', options.maxTimeMinutes)
+    if (options?.flavor) params.set('flavor', options.flavor)
+    if (options?.mealType) params.set('mealType', options.mealType)
     const url = params.size > 0 ? `/api/recipes/suggestions?${params}` : '/api/recipes/suggestions'
     try {
       const res = await fetch(url, { credentials: 'same-origin' })
@@ -167,7 +176,11 @@ export function useRecipes() {
     return bRatio - aRatio
   })
 
-  const findRecipesByIngredients = useCallback((ingredients: string[], matchMode: 'flexible' | 'exact') => loadSuggestions({ ingredients, matchMode }), [loadSuggestions])
+  const findRecipesByIngredients = useCallback((
+    ingredients: string[],
+    matchMode: 'flexible' | 'exact',
+    options?: { maxTimeMinutes?: string; flavor?: 'any' | 'sweet' | 'savory'; mealType?: 'any' | 'breakfast' | 'lunch' | 'dinner' | 'snack' | 'dessert' },
+  ) => loadSuggestions({ ingredients, matchMode, ...options }), [loadSuggestions])
   const usePantrySuggestions = useCallback(() => loadSuggestions(), [loadSuggestions])
 
   return { recipes, suggestedRecipes, savedRecipes, toggleSave, addCustomRecipe, findRecipesByIngredients, usePantrySuggestions, isLoadingSuggestions, suggestionError }

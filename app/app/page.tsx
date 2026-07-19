@@ -1,9 +1,11 @@
 'use client'
 
 import Link from 'next/link'
+import { useState } from 'react'
 import { usePantry, useRecipes, useNotifications, useBudget } from '@/lib/hooks'
 import { UrgencyBadge } from '@/components/ui/urgency-badge'
-import { ArrowRight, Package, Bell, BookOpen, TrendingUp, AlertTriangle } from 'lucide-react'
+import { RecipeFinderModal } from '@/components/recipes/recipe-finder-modal'
+import { ArrowRight, Package, Bell, BookOpen, TrendingUp, AlertTriangle, Camera, ListPlus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export default function DashboardPage() {
@@ -11,6 +13,7 @@ export default function DashboardPage() {
   const { suggestedRecipes } = useRecipes()
   const { notifications, unreadCount } = useNotifications()
   const budget = useBudget()
+  const [recipeFinderMode, setRecipeFinderMode] = useState<'photo' | 'ingredients' | null>(null)
 
   const freshCount = items.filter((i) => i.urgency === 'fresh').length
   const recentNotifications = notifications.filter((n) => !n.isRead).slice(0, 3)
@@ -25,15 +28,22 @@ export default function DashboardPage() {
       </div>
 
       <div className="mb-6 rounded-xl border border-primary/20 bg-primary/5 p-5">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
           <div>
-            <p className="text-xs uppercase tracking-widest text-muted-foreground mb-1">Fastest add</p>
-            <h2 className="font-serif text-xl text-foreground">Take a photo and log groceries instantly</h2>
-            <p className="text-sm text-muted-foreground mt-1">Capture a shelf, fridge, or receipt snapshot to start your pantry list in seconds.</p>
+            <p className="text-xs uppercase tracking-widest text-muted-foreground mb-1">Cook with what you have</p>
+            <h2 className="font-serif text-xl text-foreground">Find recipes from the ingredients in front of you</h2>
+            <p className="text-sm text-muted-foreground mt-1">Use a photo or type ingredients, then filter by sweet, savory, meal type, and time.</p>
           </div>
-          <Link href="/app/pantry" className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90">
-            Take a photo
-          </Link>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button type="button" onClick={() => setRecipeFinderMode('photo')} className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+              <Camera className="h-4 w-4" strokeWidth={1.6} />
+              Take a photo
+            </button>
+            <button type="button" onClick={() => setRecipeFinderMode('ingredients')} className="inline-flex items-center justify-center gap-2 rounded-md border border-border bg-background px-4 py-2.5 text-sm font-medium text-foreground hover:bg-muted">
+              <ListPlus className="h-4 w-4" strokeWidth={1.6} />
+              Add ingredients
+            </button>
+          </div>
         </div>
       </div>
 
@@ -206,6 +216,7 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+      {recipeFinderMode && <RecipeFinderModal initialMode={recipeFinderMode} onClose={() => setRecipeFinderMode(null)} />}
     </div>
   )
 }

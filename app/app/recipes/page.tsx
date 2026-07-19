@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import Link from 'next/link'
-import Image from 'next/image'
+import { useSearchParams } from 'next/navigation'
 import { useRecipes } from '@/lib/hooks'
 import { EmptyState } from '@/components/ui/empty-state'
 import { BookOpen, Clock, Users, Bookmark, BookmarkCheck, ArrowRight, Plus, Search, Loader2 } from 'lucide-react'
@@ -18,21 +18,21 @@ const recipeImages: Record<string, string> = {
   r5: '/recipe-soup.png',
 }
 
-type Tab = 'suggested' | 'saved'
+type Tab = 'suggested' | 'saved' | 'mine'
 type DifficultyFilter = 'all' | 'easy' | 'medium' | 'hard'
 type CostFilter = 'all' | 'low' | 'medium' | 'high'
 
 function RecipeCard({ recipe, onToggleSave }: { recipe: Recipe; onToggleSave: (id: string) => void }) {
   const matchRatio = recipe.pantryMatchCount / Math.max(recipe.totalIngredients, 1)
   const totalTime = recipe.prepTimeMinutes + recipe.cookTimeMinutes
-  const img = recipeImages[recipe.id]
+  const img = recipe.imageUrl ?? recipeImages[recipe.id]
 
   return (
     <div className="bg-card border border-border rounded-xl overflow-hidden hover:border-muted-foreground/30 transition-colors group">
       {/* Image */}
       <div className="relative h-44 bg-muted overflow-hidden">
         {img ? (
-          <Image src={img} alt={recipe.title} fill className="object-cover group-hover:scale-105 transition-transform duration-500" />
+          <img src={img} alt={recipe.title} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <BookOpen className="w-8 h-8 text-muted-foreground" strokeWidth={1} />
@@ -97,8 +97,9 @@ function RecipeCard({ recipe, onToggleSave }: { recipe: Recipe; onToggleSave: (i
   )
 }
 
-export default function RecipesPage() {
-  const { suggestedRecipes, savedRecipes, toggleSave, findRecipesByIngredients, usePantrySuggestions, isLoadingSuggestions, suggestionError } = useRecipes()
+function RecipesContent() {
+  const searchParams = useSearchParams()
+  const { recipes, suggestedRecipes, savedRecipes, toggleSave, findRecipesByIngredients, usePantrySuggestions, isLoadingSuggestions, suggestionError } = useRecipes()
   const [tab, setTab] = useState<Tab>('suggested')
   const [diffFilter, setDiffFilter] = useState<DifficultyFilter>('all')
   const [costFilter, setCostFilter] = useState<CostFilter>('all')
@@ -106,7 +107,29 @@ export default function RecipesPage() {
   const [ingredientText, setIngredientText] = useState('')
   const [matchMode, setMatchMode] = useState<'flexible' | 'exact'>('flexible')
 
-  const source = tab === 'suggested' ? suggestedRecipes : savedRecipes
+  useEffect(() => {
+    const ingredients = searchParams.get('ingredients')
+    if (!ingredients) return
+    const urlMaxTime = searchParams.get('maxTimeMinutes')
+    const flavor = searchParams.get('flavor')
+    const mealType = searchParams.get('mealType')
+    if (urlMaxTime) setMaxTime(urlMaxTime === 'any' ? 'any' : Number(urlMaxTime))
+    setIngredientText(ingredients)
+    setMatchMode(searchParams.get('matchMode') === 'exact' ? 'exact' : 'flexible')
+    setTab('suggested')
+    void findRecipesByIngredients(
+      ingredients.split(',').map((item) => item.trim()).filter(Boolean),
+      searchParams.get('matchMode') === 'exact' ? 'exact' : 'flexible',
+      {
+        maxTimeMinutes: urlMaxTime ?? undefined,
+        flavor: flavor === 'sweet' || flavor === 'savory' || flavor === 'any' ? flavor : undefined,
+        mealType: mealType === 'breakfast' || mealType === 'lunch' || mealType === 'dinner' || mealType === 'snack' || mealType === 'dessert' || mealType === 'any' ? mealType : undefined,
+      },
+    )
+  }, [findRecipesByIngredients, searchParams])
+
+  const myRecipes = recipes.filter((recipe) => recipe.isOwner || recipe.source === 'user')
+  const source = tab === 'suggested' ? suggestedRecipes : tab === 'saved' ? savedRecipes : myRecipes
 
   const filtered = source.filter((r) => {
     if (diffFilter !== 'all' && r.difficulty !== diffFilter) return false
@@ -186,7 +209,7 @@ export default function RecipesPage() {
 
       {/* Tabs */}
       <div className="flex border-b border-border mb-6">
-        {([['suggested', 'Suggestions'], ['saved', `Saved (${savedRecipes.length})`]] as [Tab, string][]).map(([id, label]) => (
+        {([['suggested', 'Suggestions'], ['saved', `Saved (${savedRecipes.length})`], ['mine', `My recipes (${myRecipes.length})`]] as [Tab, string][]).map(([id, label]) => (
           <button
             key={id}
             onClick={() => setTab(id)}
@@ -233,8 +256,8 @@ export default function RecipesPage() {
       {filtered.length === 0 ? (
         <EmptyState
           icon={BookOpen}
-          title={tab === 'saved' ? 'No saved recipes' : 'No recipes match filters'}
-          description={tab === 'saved' ? 'Save recipes from the suggestions tab to find them here.' : 'Try adjusting the filters to see more options.'}
+          title={tab === 'saved' ? 'No saved recipes' : tab === 'mine' ? 'No recipes created yet' : 'No recipes match filters'}
+          description={tab === 'saved' ? 'Save recipes from the suggestions tab to find them here.' : tab === 'mine' ? 'Create a recipe manually, from a photo, or from a document.' : 'Try adjusting the filters to see more options.'}
         />
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -244,5 +267,13 @@ export default function RecipesPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function RecipesPage() {
+  return (
+    <Suspense fallback={null}>
+      <RecipesContent />
+    </Suspense>
   )
 }

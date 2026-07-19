@@ -11,6 +11,8 @@ const querySchema = z.object({
   costLevel: z.string().optional(),
   ingredients: z.string().optional(),
   matchMode: z.enum(['flexible', 'exact']).optional(),
+  flavor: z.enum(['any', 'sweet', 'savory']).optional(),
+  mealType: z.enum(['any', 'breakfast', 'lunch', 'dinner', 'snack', 'dessert']).optional(),
 })
 
 async function getUserId() {
@@ -37,6 +39,32 @@ function hasAllMainIngredients(recipe: Ranked, pantryNames: string[]) {
   return mainIngredients.every((ingredient) => pantryNames.some((pantryName) => ingredientMatchesPantry(ingredient.name, pantryName)))
 }
 
+function recipeText(recipe: Ranked) {
+  const tags = Array.isArray(recipe.tags) ? recipe.tags.join(' ') : ''
+  return `${recipe.title ?? ''} ${recipe.description ?? ''} ${tags}`.toLowerCase()
+}
+
+function matchesFlavor(recipe: Ranked, flavor: 'any' | 'sweet' | 'savory') {
+  if (flavor === 'any') return true
+  const text = recipeText(recipe)
+  const sweetWords = /(dessert|cake|cookie|brownie|pudding|sweet|chocolate|sugar|honey|cream|pie|tart|custard|ice cream)/
+  if (flavor === 'sweet') return sweetWords.test(text)
+  return !sweetWords.test(text)
+}
+
+function matchesMealType(recipe: Ranked, mealType: 'any' | 'breakfast' | 'lunch' | 'dinner' | 'snack' | 'dessert') {
+  if (mealType === 'any') return true
+  const text = recipeText(recipe)
+  const patterns: Record<Exclude<typeof mealType, 'any'>, RegExp> = {
+    breakfast: /(breakfast|brunch|egg|omelette|pancake|toast|oat|cereal)/,
+    lunch: /(lunch|salad|sandwich|wrap|soup|bowl)/,
+    dinner: /(dinner|main|roast|stew|curry|pasta|rice|beef|chicken|fish|seafood|pork)/,
+    snack: /(snack|dip|toast|chips|appetizer|starter|bite)/,
+    dessert: /(dessert|cake|cookie|brownie|pudding|chocolate|pie|tart|custard|sweet)/,
+  }
+  return patterns[mealType].test(text)
+}
+
 export async function GET(request: Request) {
   try {
     const userId = await getUserId()
@@ -48,6 +76,8 @@ export async function GET(request: Request) {
     const costLevel = parsed.success ? parsed.data.costLevel : undefined
     const requestedIngredients = parsed.success ? parseIngredientQuery(parsed.data.ingredients) : []
     const matchMode = parsed.success ? parsed.data.matchMode ?? 'flexible' : 'flexible'
+    const flavor = parsed.success ? parsed.data.flavor ?? 'any' : 'any'
+    const mealType = parsed.success ? parsed.data.mealType ?? 'any' : 'any'
 
     const [pantry, savedRows] = await Promise.all([
       prisma.pantryItem.findMany({ where: { userId } }),
@@ -64,6 +94,8 @@ export async function GET(request: Request) {
       source: requestedIngredients.length > 0 ? 'manual-ingredients' : 'pantry',
       ingredientCount: pantryNames.length,
       matchMode,
+      flavor,
+      mealType,
     })
 
     // Get matching recipes already in DB
@@ -71,14 +103,14 @@ export async function GET(request: Request) {
 
     const normalizedDb: Ranked[] = dbRecipes.map((r) => {
       const match = matchIngredientsToPantry(r.ingredients, pantryForMatching)
-      return { ...r, ...match, isSaved: savedIds.has(r.id) }
+      return { ...r, ...match, isSaved: savedIds.has(r.id), isOwner: r.userId === userId }
     })
 
     // External results
     const external: Ranked[] = (await searchRecipesByIngredients(pantryNames)).map((recipe) => {
       const ingredients = Array.isArray(recipe.ingredients) ? recipe.ingredients : []
       const match = matchIngredientsToPantry(ingredients, pantryForMatching)
-      return { ...recipe, ...match, isSaved: savedIds.has(recipe.id) }
+      return { ...recipe, ...match, isSaved: savedIds.has(recipe.id), isOwner: false }
     })
 
     // Merge and dedupe by title
@@ -88,6 +120,8 @@ export async function GET(request: Request) {
       if (costLevel && r.costLevel && r.costLevel !== costLevel) continue
       const totalTime = (r.prepTimeMinutes ?? 0) + (r.cookTimeMinutes ?? 0)
       if (maxTime !== undefined && totalTime > maxTime) continue
+      if (!matchesFlavor(r, flavor)) continue
+      if (!matchesMealType(r, mealType)) continue
       if (matchMode === 'exact' && !hasAllMainIngredients(r, pantryNames)) continue
       const key = (r.title || '').toLowerCase()
       const existing = combinedMap.get(key)

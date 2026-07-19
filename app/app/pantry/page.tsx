@@ -16,6 +16,7 @@ export default function PantryPage() {
   const { items, removeItem } = usePantry()
   const [viewMode, setViewMode] = useState<ViewMode>('list')
   const [showAdd, setShowAdd] = useState(false)
+  const [addMode, setAddMode] = useState<'manual' | 'photo' | 'barcode' | 'receipt'>('manual')
   const [filterUrgency, setFilterUrgency] = useState<ItemUrgency | 'all'>('all')
   const [filterCategory, setFilterCategory] = useState<Category | 'all'>('all')
   const [filterLocation, setFilterLocation] = useState<StorageLocation | 'all'>('all')
@@ -42,7 +43,7 @@ export default function PantryPage() {
           <p className="text-sm text-muted-foreground mt-1">{items.length} items total</p>
         </div>
         <button
-          onClick={() => setShowAdd(true)}
+          onClick={() => { setAddMode('manual'); setShowAdd(true) }}
           className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-md text-sm font-medium hover:bg-primary/90 transition-colors"
         >
           <Plus className="w-4 h-4" strokeWidth={2} />
@@ -80,7 +81,7 @@ export default function PantryPage() {
           ].map((item) => (
             <button
               key={item.label}
-              onClick={() => setShowAdd(true)}
+              onClick={() => { setAddMode(item.mode); setShowAdd(true) }}
               className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground hover:border-primary hover:text-primary"
             >
               {item.label}
@@ -127,7 +128,7 @@ export default function PantryPage() {
           description="Your pantry is empty, or no items match the current filters."
           action={
             <button
-              onClick={() => setShowAdd(true)}
+              onClick={() => { setAddMode('manual'); setShowAdd(true) }}
               className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-medium hover:bg-primary/90"
             >
               <Plus className="w-4 h-4" /> Add first item
@@ -218,7 +219,7 @@ export default function PantryPage() {
       )}
 
       {/* Add item modal */}
-      {showAdd && <AddItemModal onClose={() => setShowAdd(false)} />}
+      {showAdd && <AddItemModal initialMode={addMode} onClose={() => setShowAdd(false)} />}
     </div>
   )
 }

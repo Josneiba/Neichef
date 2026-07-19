@@ -6,6 +6,7 @@ import { matchIngredientsToPantry } from '@/lib/recipes/enrich'
 
 type RecipeForResponse = {
   id: string
+  userId?: string | null
   ingredients?: { name: string }[]
   [key: string]: unknown
 }
@@ -66,5 +67,5 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
   const match = matchIngredientsToPantry(recipe.ingredients ?? [], pantryItems)
 
-  return NextResponse.json({ ...recipe, ...match, isSaved })
+  return NextResponse.json({ ...recipe, ...match, isSaved, isOwner: Boolean(userId && recipe.userId === userId) })
 }

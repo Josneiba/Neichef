@@ -1,10 +1,9 @@
 'use client'
 
-import { use } from 'react'
+import { use, useEffect, useState } from 'react'
 import Link from 'next/link'
-import Image from 'next/image'
 import { useRecipe } from '@/lib/hooks'
-import { ArrowLeft, Clock, Bookmark, BookmarkCheck, ChefHat, Check, AlertCircle, Loader2 } from 'lucide-react'
+import { ArrowLeft, Bookmark, BookmarkCheck, ChefHat, Check, AlertCircle, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const recipeImages: Record<string, string> = {
@@ -20,6 +19,26 @@ const difficultyLabel: Record<string, string> = { easy: 'Easy', medium: 'Interme
 export default function RecipeDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const { recipe, isLoading, error, toggleSave } = useRecipe(id)
+  const [nutrition, setNutrition] = useState<{ calories: number; protein: number; carbs: number; fat: number; sugars: number; matchedIngredients: number; note: string } | null>(null)
+
+  useEffect(() => {
+    if (!recipe) return
+    let cancelled = false
+    fetch('/api/nutrition', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ ingredients: recipe.ingredients }),
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!cancelled && data?.matchedIngredients > 0) setNutrition(data)
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [recipe])
 
   if (isLoading) {
     return (
@@ -41,9 +60,10 @@ export default function RecipeDetailPage({ params }: { params: Promise<{ id: str
     )
   }
 
-  const img = recipeImages[recipe.id]
+  const img = recipe.imageUrl ?? recipeImages[recipe.id]
   const missingIngredients = recipe.ingredients.filter((i) => !i.inPantry && !i.isStaple)
   const matchRatio = recipe.pantryMatchCount / Math.max(recipe.totalIngredients, 1)
+  const methodText = recipe.steps.map((step) => step.instruction).filter(Boolean).join(' ')
 
   return (
     <div className="max-w-3xl mx-auto pb-24 lg:pb-8">
@@ -58,7 +78,7 @@ export default function RecipeDetailPage({ params }: { params: Promise<{ id: str
       {/* Hero image */}
       <div className="relative h-64 md:h-80 bg-muted mx-6 rounded-xl overflow-hidden mb-6">
         {img ? (
-          <Image src={img} alt={recipe.title} fill className="object-cover" priority />
+          <img src={img} alt={recipe.title} className="h-full w-full object-cover" />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <ChefHat className="w-12 h-12 text-muted-foreground" strokeWidth={1} />
@@ -121,30 +141,52 @@ export default function RecipeDetailPage({ params }: { params: Promise<{ id: str
           )}
         </div>
 
+        {nutrition && (
+          <div className="mb-6 rounded-lg border border-border bg-card p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-sm font-medium text-foreground">Nutrition estimate</p>
+              <p className="text-xs text-muted-foreground">{nutrition.matchedIngredients} ingredients matched</p>
+            </div>
+            <div className="grid grid-cols-5 gap-2 text-center">
+              {[
+                ['Calories', nutrition.calories],
+                ['Protein', `${nutrition.protein}g`],
+                ['Carbs', `${nutrition.carbs}g`],
+                ['Fat', `${nutrition.fat}g`],
+                ['Sugar', `${nutrition.sugars}g`],
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-md bg-muted px-2 py-2">
+                  <p className="font-serif text-base text-foreground">{value}</p>
+                  <p className="text-[10px] text-muted-foreground">{label}</p>
+                </div>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">{nutrition.note}</p>
+          </div>
+        )}
+
         {/* Ingredients */}
         <div className="mb-8">
           <h2 className="font-serif text-xl text-foreground mb-4">Ingredients</h2>
-          <div className="space-y-2">
-            {recipe.ingredients.map((ing) => (
-              <div key={ing.name} className={cn('flex items-start gap-3 p-3 rounded-lg', ing.inPantry ? 'bg-[oklch(0.97_0.02_145)]' : 'bg-[oklch(0.97_0.02_25)]')}>
-                <div className={cn('w-5 h-5 rounded-full border flex items-center justify-center flex-shrink-0 mt-0.5', ing.inPantry ? 'bg-[oklch(0.32_0.08_145)] border-[oklch(0.32_0.08_145)]' : 'border-[oklch(0.7_0.1_25)] bg-transparent')}>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {recipe.ingredients.map((ing, index) => (
+              <div key={`${ing.name}-${index}`} className={cn('flex items-start gap-2 rounded-md border p-2.5', ing.inPantry ? 'border-[oklch(0.82_0.06_145)] bg-[oklch(0.98_0.015_145)]' : 'border-[oklch(0.86_0.05_25)] bg-[oklch(0.985_0.012_25)]')}>
+                <div className={cn('w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 mt-0.5', ing.inPantry ? 'bg-[oklch(0.32_0.08_145)] border-[oklch(0.32_0.08_145)]' : 'border-[oklch(0.7_0.1_25)] bg-transparent')}>
                   {ing.inPantry
-                    ? <Check className="w-3 h-3 text-primary-foreground" strokeWidth={2.5} />
-                    : <AlertCircle className="w-3 h-3 text-[oklch(0.55_0.15_25)]" strokeWidth={2} />
+                    ? <Check className="w-2.5 h-2.5 text-primary-foreground" strokeWidth={2.5} />
+                    : <AlertCircle className="w-2.5 h-2.5 text-[oklch(0.55_0.15_25)]" strokeWidth={2} />
                   }
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className={cn('text-sm font-medium', ing.inPantry ? 'text-foreground' : 'text-[oklch(0.42_0.1_25)]')}>
+                  <p className={cn('text-xs font-medium leading-snug', ing.inPantry ? 'text-foreground' : 'text-[oklch(0.42_0.1_25)]')}>
                     {ing.amount} {ing.unit} {ing.name}
-                    {!ing.inPantry && <span className="ml-1 text-xs font-normal text-muted-foreground">— not in pantry</span>}
+                    {!ing.inPantry && !ing.isStaple && <span className="ml-1 font-normal text-muted-foreground">- not in pantry</span>}
+                    {ing.isStaple && <span className="ml-1 font-normal text-muted-foreground">- staple</span>}
                   </p>
                   {ing.substitution && (
                     <p className="text-xs text-muted-foreground mt-0.5">Sub: {ing.substitution}</p>
                   )}
                 </div>
-                {ing.inPantry && (
-                  <span className="text-[10px] text-[oklch(0.38_0.07_145)] font-medium flex-shrink-0">In pantry</span>
-                )}
               </div>
             ))}
           </div>
@@ -153,26 +195,10 @@ export default function RecipeDetailPage({ params }: { params: Promise<{ id: str
         {/* Steps */}
         <div className="mb-8">
           <h2 className="font-serif text-xl text-foreground mb-4">Method</h2>
-          <div className="space-y-4">
-            {recipe.steps.map((step) => (
-              <div key={step.step} className="flex gap-4">
-                <div className="flex-shrink-0">
-                  <div className="w-7 h-7 rounded-full bg-muted border border-border flex items-center justify-center">
-                    <span className="text-xs font-medium text-muted-foreground">{step.step}</span>
-                  </div>
-                </div>
-                <div className="flex-1 pt-0.5">
-                  <p className="text-sm text-foreground leading-relaxed">{step.instruction}</p>
-                  {step.durationMinutes && (
-                    <div className="flex items-center gap-1 mt-1.5 text-xs text-muted-foreground">
-                      <Clock className="w-3 h-3" strokeWidth={1.5} />
-                      {step.durationMinutes} min
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
+          <p className="rounded-lg border border-border bg-card p-4 text-sm leading-7 text-foreground">
+            {methodText}
+          </p>
+          <p className="mt-2 text-xs text-muted-foreground">Cook Mode breaks this method into guided steps with timers.</p>
         </div>
 
         {/* Cook Mode CTA */}

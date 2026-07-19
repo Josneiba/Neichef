@@ -59,6 +59,8 @@ export interface Recipe {
   tags: string[]
   imageUrl?: string
   isSaved: boolean
+  isOwner?: boolean
+  source?: string
   costLevel: 'low' | 'medium' | 'high'
 }
 
