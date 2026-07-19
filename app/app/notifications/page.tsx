@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useNotifications } from '@/lib/hooks'
+import { useT } from '@/lib/i18n'
 import { Bell, BellOff, ChefHat, AlertTriangle, X, ArrowRight, Clock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { NotificationType } from '@/lib/types'
@@ -40,6 +41,7 @@ const typeIconColor: Record<NotificationType, string> = {
 
 export default function NotificationsPage() {
   const { notifications, markRead, markAllRead, dismiss, unreadCount } = useNotifications()
+  const t = useT()
 
   const unread = notifications.filter((n) => !n.isRead)
   const read = notifications.filter((n) => n.isRead)
@@ -49,11 +51,11 @@ export default function NotificationsPage() {
       {/* Header */}
       <div className="flex items-start justify-between mb-8">
         <div>
-          <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1">Alerts</p>
-          <h1 className="font-serif text-3xl text-foreground">Notifications</h1>
+          <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1">{t('alerts')}</p>
+          <h1 className="font-serif text-3xl text-foreground">{t('notifications')}</h1>
           {unreadCount > 0 && (
             <p className="text-sm text-muted-foreground mt-1">
-              {unreadCount} unread
+              {unreadCount} {t('unread')}
             </p>
           )}
         </div>
@@ -62,7 +64,7 @@ export default function NotificationsPage() {
             onClick={markAllRead}
             className="text-xs text-muted-foreground hover:text-foreground transition-colors border border-border px-3 py-1.5 rounded-md hover:bg-muted"
           >
-            Mark all read
+            {t('markAllRead')}
           </button>
         )}
       </div>
@@ -72,8 +74,8 @@ export default function NotificationsPage() {
           <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center mb-4">
             <BellOff className="w-6 h-6 text-muted-foreground" strokeWidth={1} />
           </div>
-          <p className="font-serif text-xl text-foreground mb-2">All clear</p>
-          <p className="text-sm text-muted-foreground">No notifications right now. Check back when something is about to expire.</p>
+          <p className="font-serif text-xl text-foreground mb-2">{t('allClear')}</p>
+          <p className="text-sm text-muted-foreground">{t('noNewNotifications')}</p>
         </div>
       ) : (
         <div className="space-y-8">

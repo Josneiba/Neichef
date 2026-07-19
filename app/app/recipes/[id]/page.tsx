@@ -3,6 +3,7 @@
 import { use, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRecipe } from '@/lib/hooks'
+import { useT } from '@/lib/i18n'
 import { ArrowLeft, Bookmark, BookmarkCheck, ChefHat, Check, AlertCircle, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -19,6 +20,7 @@ const difficultyLabel: Record<string, string> = { easy: 'Easy', medium: 'Interme
 export default function RecipeDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const { recipe, isLoading, error, toggleSave } = useRecipe(id)
+  const t = useT()
   const [nutrition, setNutrition] = useState<{ calories: number; protein: number; carbs: number; fat: number; sugars: number; matchedIngredients: number; note: string } | null>(null)
 
   useEffect(() => {
@@ -44,7 +46,7 @@ export default function RecipeDetailPage({ params }: { params: Promise<{ id: str
     return (
       <div className="px-6 py-8 max-w-3xl mx-auto flex flex-col items-center justify-center min-h-[50vh] text-muted-foreground">
         <Loader2 className="w-6 h-6 animate-spin mb-3" strokeWidth={1.5} />
-        <p className="text-sm">Loading recipe…</p>
+        <p className="text-sm">{t('loadingRecipe')}</p>
       </div>
     )
   }
@@ -53,9 +55,9 @@ export default function RecipeDetailPage({ params }: { params: Promise<{ id: str
     return (
       <div className="px-6 py-8 max-w-3xl mx-auto">
         <Link href="/app/recipes" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6">
-          <ArrowLeft className="w-4 h-4" strokeWidth={1.5} /> Back to recipes
+          <ArrowLeft className="w-4 h-4" strokeWidth={1.5} /> {t('backToRecipes')}
         </Link>
-        <p className="text-muted-foreground">{error ?? 'Recipe not found.'}</p>
+        <p className="text-muted-foreground">{error ?? t('recipeNotFound')}</p>
       </div>
     )
   }
@@ -71,7 +73,7 @@ export default function RecipeDetailPage({ params }: { params: Promise<{ id: str
       <div className="px-6 pt-8 pb-4">
         <Link href="/app/recipes" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
           <ArrowLeft className="w-4 h-4" strokeWidth={1.5} />
-          Back to recipes
+          {t('backToRecipes')}
         </Link>
       </div>
 
@@ -113,10 +115,10 @@ export default function RecipeDetailPage({ params }: { params: Promise<{ id: str
         {/* Stats bar */}
         <div className="grid grid-cols-4 gap-3 py-4 border-y border-border mb-6">
           {[
-            { label: 'Prep', value: `${recipe.prepTimeMinutes} min` },
-            { label: 'Cook', value: `${recipe.cookTimeMinutes} min` },
-            { label: 'Serves', value: String(recipe.servings) },
-            { label: 'Difficulty', value: difficultyLabel[recipe.difficulty] },
+            { label: t('prepTime'), value: `${recipe.prepTimeMinutes} min` },
+            { label: t('cookTime'), value: `${recipe.cookTimeMinutes} min` },
+            { label: t('serves'), value: String(recipe.servings) },
+            { label: t('difficulty'), value: t(recipe.difficulty as 'easy' | 'intermediate' | 'advanced') },
           ].map(({ label, value }) => (
             <div key={label} className="text-center">
               <p className="font-serif text-lg text-foreground">{value}</p>
@@ -128,15 +130,15 @@ export default function RecipeDetailPage({ params }: { params: Promise<{ id: str
         {/* Pantry match */}
         <div className="bg-muted rounded-lg p-4 mb-6">
           <div className="flex items-center justify-between mb-2">
-            <p className="text-sm font-medium text-foreground">Pantry coverage</p>
-            <p className="text-sm text-muted-foreground">{recipe.pantryMatchCount}/{recipe.totalIngredients} ingredients</p>
+            <p className="text-sm font-medium text-foreground">{t('pantryMatch')}</p>
+            <p className="text-sm text-muted-foreground">{recipe.pantryMatchCount}/{recipe.totalIngredients} {t('pantryMatchLabel')}</p>
           </div>
           <div className="h-1.5 bg-border rounded-full overflow-hidden">
             <div className="h-full bg-primary rounded-full" style={{ width: `${matchRatio * 100}%` }} />
           </div>
           {missingIngredients.length > 0 && (
             <p className="text-xs text-muted-foreground mt-2">
-              Missing: {missingIngredients.map((i) => i.name).join(', ')}
+              {t('missing')} {missingIngredients.map((i) => i.name).join(', ')}
             </p>
           )}
         </div>
@@ -144,8 +146,8 @@ export default function RecipeDetailPage({ params }: { params: Promise<{ id: str
         {nutrition && (
           <div className="mb-6 rounded-lg border border-border bg-card p-4">
             <div className="mb-3 flex items-center justify-between">
-              <p className="text-sm font-medium text-foreground">Nutrition estimate</p>
-              <p className="text-xs text-muted-foreground">{nutrition.matchedIngredients} ingredients matched</p>
+              <p className="text-sm font-medium text-foreground">{t('nutritionEstimate')}</p>
+              <p className="text-xs text-muted-foreground">{nutrition.matchedIngredients} {t('matchedIngredients')}</p>
             </div>
             <div className="grid grid-cols-5 gap-2 text-center">
               {[

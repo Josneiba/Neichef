@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { usePantry } from '@/lib/hooks'
+import { useT } from '@/lib/i18n'
 import { UrgencyBadge } from '@/components/ui/urgency-badge'
 import { EmptyState } from '@/components/ui/empty-state'
 import { AddItemModal } from '@/components/pantry/add-item-modal'
@@ -14,6 +15,7 @@ type ViewMode = 'list' | 'grid'
 
 export default function PantryPage() {
   const { items, removeItem } = usePantry()
+  const t = useT()
   const [viewMode, setViewMode] = useState<ViewMode>('list')
   const [showAdd, setShowAdd] = useState(false)
   const [addMode, setAddMode] = useState<'manual' | 'photo' | 'barcode' | 'receipt'>('manual')
@@ -38,25 +40,25 @@ export default function PantryPage() {
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
-          <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1">Inventory</p>
-          <h1 className="font-serif text-3xl text-foreground">Pantry</h1>
-          <p className="text-sm text-muted-foreground mt-1">{items.length} items total</p>
+          <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1">{t('inventory')}</p>
+          <h1 className="font-serif text-3xl text-foreground">{t('pantry')}</h1>
+          <p className="text-sm text-muted-foreground mt-1">{items.length} {t('itemsTotal')}</p>
         </div>
         <button
           onClick={() => { setAddMode('manual'); setShowAdd(true) }}
           className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-md text-sm font-medium hover:bg-primary/90 transition-colors"
         >
           <Plus className="w-4 h-4" strokeWidth={2} />
-          Add item
+          {t('addIngredients')}
         </button>
       </div>
 
       {/* Urgency summary */}
       <div className="grid grid-cols-3 gap-3 mb-6">
         {[
-          { label: 'Fresh', count: items.filter((i) => i.urgency === 'fresh').length, urgency: 'fresh' as ItemUrgency, color: 'bg-[oklch(0.92_0.04_145)] border-[oklch(0.82_0.06_145)]', textColor: 'text-[oklch(0.28_0.08_145)]', subColor: 'text-[oklch(0.38_0.07_145)]' },
-          { label: 'Expiring', count: expiringCount, urgency: 'expiring' as ItemUrgency, color: 'bg-[oklch(0.94_0.07_75)] border-[oklch(0.84_0.09_70)]', textColor: 'text-[oklch(0.42_0.10_55)]', subColor: 'text-[oklch(0.48_0.08_60)]' },
-          { label: 'Expired', count: expiredCount, urgency: 'expired' as ItemUrgency, color: 'bg-[oklch(0.93_0.05_25)] border-[oklch(0.83_0.08_25)]', textColor: 'text-[oklch(0.42_0.15_25)]', subColor: 'text-[oklch(0.48_0.12_25)]' },
+          { label: t('fresh'), count: items.filter((i) => i.urgency === 'fresh').length, urgency: 'fresh' as ItemUrgency, color: 'bg-[oklch(0.92_0.04_145)] border-[oklch(0.82_0.06_145)]', textColor: 'text-[oklch(0.28_0.08_145)]', subColor: 'text-[oklch(0.38_0.07_145)]' },
+          { label: t('expiring'), count: expiringCount, urgency: 'expiring' as ItemUrgency, color: 'bg-[oklch(0.94_0.07_75)] border-[oklch(0.84_0.09_70)]', textColor: 'text-[oklch(0.42_0.10_55)]', subColor: 'text-[oklch(0.48_0.08_60)]' },
+          { label: t('expired'), count: expiredCount, urgency: 'expired' as ItemUrgency, color: 'bg-[oklch(0.93_0.05_25)] border-[oklch(0.83_0.08_25)]', textColor: 'text-[oklch(0.42_0.15_25)]', subColor: 'text-[oklch(0.48_0.12_25)]' },
         ].map(({ label, count, urgency, color, textColor, subColor }) => (
           <button
             key={label}
@@ -70,14 +72,14 @@ export default function PantryPage() {
       </div>
 
       <div className="mb-6 rounded-lg border border-border bg-card p-4">
-        <p className="text-sm font-medium text-foreground">Quick add options</p>
-        <p className="text-xs text-muted-foreground mt-1">Choose manual entry, barcode scan, receipt import, or photo capture to log inventory faster.</p>
+        <p className="text-sm font-medium text-foreground">{t('quickAddOptions')}</p>
+        <p className="text-xs text-muted-foreground mt-1">{t('chooseManualEntry')}</p>
         <div className="mt-3 flex flex-wrap gap-2">
           {[
-            { label: 'Manual entry', mode: 'manual' as const },
-            { label: 'Scan barcode', mode: 'barcode' as const },
-            { label: 'Upload receipt', mode: 'receipt' as const },
-            { label: 'Take a photo', mode: 'photo' as const },
+            { label: t('manualEntry'), mode: 'manual' as const },
+            { label: t('scanBarcode'), mode: 'barcode' as const },
+            { label: t('uploadReceipt'), mode: 'receipt' as const },
+            { label: t('takeAPhoto'), mode: 'photo' as const },
           ].map((item) => (
             <button
               key={item.label}

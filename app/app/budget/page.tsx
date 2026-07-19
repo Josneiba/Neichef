@@ -1,6 +1,7 @@
 'use client'
 
 import { useBudget, usePantry } from '@/lib/hooks'
+import { useT } from '@/lib/i18n'
 import { TrendingUp, TrendingDown, Package, Leaf } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -33,6 +34,7 @@ function BarChart({ data }: { data: { label: string; saved: number; wasted: numb
 export default function BudgetPage() {
   const budget = useBudget()
   const { items } = usePantry()
+  const t = useT()
 
   const freshItems = items.filter((i) => i.urgency === 'fresh').length
   const wasteRate = Math.round(
@@ -46,49 +48,49 @@ export default function BudgetPage() {
     <div className="px-6 py-8 max-w-4xl mx-auto pb-24 lg:pb-8">
       {/* Header */}
       <div className="mb-8">
-        <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1">Insights</p>
-        <h1 className="font-serif text-3xl text-foreground">Budget & Waste</h1>
-        <p className="text-sm text-muted-foreground mt-1">Track money saved and food wasted over time.</p>
+        <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1">{t('insights')}</p>
+        <h1 className="font-serif text-3xl text-foreground">{t('budgetWaste')}</h1>
+        <p className="text-sm text-muted-foreground mt-1">{t('trackMoneyAndFood')}</p>
       </div>
 
       {/* KPI row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {[
           {
-            label: 'Saved this month',
+            label: t('savedThisMonth'),
             value: `$${budget.estimatedSavedAmount.toFixed(0)}`,
             icon: TrendingUp,
             color: 'text-primary',
             bg: 'bg-[oklch(0.92_0.04_145)]',
             iconColor: 'text-primary',
-            desc: 'From using items before expiry',
+            desc: t('fromUsingBefore'),
           },
           {
-            label: 'Wasted this month',
+            label: t('wastedThisMonth'),
             value: `$${budget.estimatedWastedAmount.toFixed(0)}`,
             icon: TrendingDown,
             color: 'text-[oklch(0.42_0.15_25)]',
             bg: 'bg-[oklch(0.93_0.05_25)]',
             iconColor: 'text-[oklch(0.42_0.15_25)]',
-            desc: 'Estimated from expired items',
+            desc: t('estimatedFromExpired'),
           },
           {
-            label: 'Items saved',
+            label: t('itemsSavedLabel'),
             value: String(budget.itemsSavedCount),
             icon: Package,
             color: 'text-foreground',
             bg: 'bg-muted',
             iconColor: 'text-muted-foreground',
-            desc: 'Used before best-before date',
+            desc: t('usedBeforeBestBefore'),
           },
           {
-            label: 'Waste rate',
+            label: t('wasteRateLabel'),
             value: `${wasteRate}%`,
             icon: Leaf,
             color: wasteRate < 20 ? 'text-primary' : 'text-[oklch(0.42_0.10_55)]',
             bg: wasteRate < 20 ? 'bg-[oklch(0.92_0.04_145)]' : 'bg-[oklch(0.94_0.07_75)]',
             iconColor: wasteRate < 20 ? 'text-primary' : 'text-[oklch(0.42_0.10_55)]',
-            desc: 'Of food value wasted vs used',
+            desc: t('ofFoodValueWasted'),
           },
         ].map(({ label, value, icon: Icon, color, bg, iconColor, desc }) => (
           <div key={label} className={cn('rounded-xl p-5 border border-border', bg)}>

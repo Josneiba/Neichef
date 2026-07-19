@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
+import { useT } from '@/lib/i18n'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { useRecipes } from '@/lib/hooks'
@@ -65,7 +66,7 @@ function RecipeCard({ recipe, onToggleSave }: { recipe: Recipe; onToggleSave: (i
             <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${matchRatio * 100}%` }} />
           </div>
           <span className="text-xs text-muted-foreground flex-shrink-0">
-            {recipe.pantryMatchCount}/{recipe.totalIngredients} in pantry
+            {recipe.pantryMatchCount}/{recipe.totalIngredients} {t('inPantry')}
           </span>
         </div>
 
@@ -98,6 +99,7 @@ function RecipeCard({ recipe, onToggleSave }: { recipe: Recipe; onToggleSave: (i
 }
 
 function RecipesContent() {
+  const t = useT()
   const searchParams = useSearchParams()
   const { recipes, suggestedRecipes, savedRecipes, toggleSave, findRecipesByIngredients, usePantrySuggestions, isLoadingSuggestions, suggestionError } = useRecipes()
   const [tab, setTab] = useState<Tab>('suggested')

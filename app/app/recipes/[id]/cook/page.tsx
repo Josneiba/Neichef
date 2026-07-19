@@ -3,6 +3,7 @@
 import { use, useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRecipe } from '@/lib/hooks'
+import { useT } from '@/lib/i18n'
 import { ArrowLeft, ArrowRight, ChefHat, Clock, Check, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -18,6 +19,7 @@ function formatTime(seconds: number) {
 export default function CookModePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const { recipe, isLoading } = useRecipe(id)
+  const t = useT()
 
   const [phase, setPhase] = useState<Phase>('prep')
   const [countdown, setCountdown] = useState(3)
@@ -97,8 +99,8 @@ export default function CookModePage({ params }: { params: Promise<{ id: string 
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
           <ChefHat className="w-12 h-12 text-muted-foreground mx-auto mb-4" strokeWidth={1} />
-          <p className="text-muted-foreground mb-4">Recipe not found.</p>
-          <Link href="/app/recipes" className="text-sm text-primary hover:underline">Back to recipes</Link>
+          <p className="text-muted-foreground mb-4">{t('recipeNotFound')}</p>
+          <Link href="/app/recipes" className="text-sm text-primary hover:underline">{t('backToRecipes')}</Link>
         </div>
       </div>
     )
@@ -118,14 +120,14 @@ export default function CookModePage({ params }: { params: Promise<{ id: string 
       <div className="flex items-center justify-between px-6 py-4 border-b border-sidebar-border">
         <Link href={`/app/recipes/${id}`} className="flex items-center gap-2 text-sidebar-foreground/60 hover:text-sidebar-foreground transition-colors text-sm">
           <X className="w-4 h-4" strokeWidth={1.5} />
-          Exit Cook Mode
+          {t('exitCookMode')}
         </Link>
         <div className="flex items-center gap-2 text-sm text-sidebar-foreground/60">
           <ChefHat className="w-4 h-4" strokeWidth={1.5} />
           <span className="font-serif">{recipe.title}</span>
         </div>
         <button onClick={() => setShowIngredients(!showIngredients)} className="text-sidebar-foreground/60 hover:text-sidebar-foreground text-sm transition-colors">
-          Ingredients
+          {t('ingredients')}
         </button>
       </div>
 
@@ -135,7 +137,7 @@ export default function CookModePage({ params }: { params: Promise<{ id: string 
 
       {showIngredients && (
         <div className="bg-sidebar-accent border-b border-sidebar-border px-6 py-4">
-          <p className="text-xs font-medium text-sidebar-foreground/60 uppercase tracking-widest mb-3">Ingredients</p>
+          <p className="text-xs font-medium text-sidebar-foreground/60 uppercase tracking-widest mb-3">{t('ingredients')}</p>
           <div className="grid sm:grid-cols-2 gap-2">
             {recipe.ingredients.map((ing, index) => (
               <div key={`${ing.name}-${index}`} className="flex items-center gap-2 text-sm">
@@ -153,15 +155,15 @@ export default function CookModePage({ params }: { params: Promise<{ id: string 
             <div className="w-16 h-16 rounded-full bg-sidebar-accent flex items-center justify-center mx-auto mb-6">
               <ChefHat className="w-8 h-8 text-sidebar-foreground" strokeWidth={1.2} />
             </div>
-            <h1 className="font-serif text-4xl text-sidebar-foreground mb-4">Ready to cook?</h1>
+            <h1 className="font-serif text-4xl text-sidebar-foreground mb-4">{t('readyToCook')}</h1>
             <p className="text-sidebar-foreground/65 leading-relaxed mb-6">
-              Do you have all ingredients, tools, and a clear workspace ready?
+              {t('haveAllIngredientsReady')}
             </p>
             <div className="rounded-lg border border-sidebar-border bg-sidebar-accent/60 p-4 text-left text-sm text-sidebar-foreground/75 mb-6">
               Estimated time: {Math.round(estimatedSeconds / 60)} min · {totalSteps} guided steps
             </div>
             <button onClick={beginCooking} className="w-full rounded-md bg-sidebar-primary px-6 py-3 font-medium text-sidebar-primary-foreground hover:bg-sidebar-primary/90">
-              Yes, start countdown
+              {t('yesStartCountdown')}
             </button>
           </div>
         )}
@@ -186,7 +188,7 @@ export default function CookModePage({ params }: { params: Promise<{ id: string 
             </div>
 
             <p className="text-xs font-medium text-sidebar-foreground/40 uppercase tracking-widest mb-4">
-              Step {currentStep + 1} of {totalSteps}
+              {t('step')} {currentStep + 1} {t('of')} {totalSteps}
             </p>
             <p className="font-serif text-center text-sidebar-foreground leading-snug mb-8 text-pretty text-3xl md:text-4xl lg:text-5xl">
               {step.instruction}
@@ -195,14 +197,14 @@ export default function CookModePage({ params }: { params: Promise<{ id: string 
             <div className={cn('mb-6 w-full rounded-xl border p-4 text-center', currentStepRemaining < 0 ? 'border-[oklch(0.84_0.09_70)] bg-[oklch(0.18_0.04_65)]' : 'border-sidebar-border bg-sidebar-accent')}>
               <p className="text-xs text-sidebar-foreground/50 flex items-center justify-center gap-1.5">
                 <Clock className="w-3 h-3" strokeWidth={1.5} />
-                Step estimate · {Math.round(currentStepEstimate / 60)} min
+                {t('stepEstimate')} · {Math.round(currentStepEstimate / 60)} min
               </p>
               <p className="font-serif text-5xl text-sidebar-foreground mt-1">
                 {currentStepRemaining >= 0 ? formatTime(currentStepRemaining) : `+${formatTime(Math.abs(currentStepRemaining))}`}
               </p>
             </div>
 
-            <p className="text-xs text-sidebar-foreground/50">Total elapsed: {formatTime(elapsedSeconds)}</p>
+            <p className="text-xs text-sidebar-foreground/50">{t('totalElapsed')}: {formatTime(elapsedSeconds)}</p>
           </>
         )}
 
@@ -211,13 +213,13 @@ export default function CookModePage({ params }: { params: Promise<{ id: string 
             <div className="w-20 h-20 rounded-full bg-[oklch(0.35_0.08_145)] flex items-center justify-center mx-auto mb-6">
               <Check className="w-10 h-10 text-sidebar-foreground" strokeWidth={1.7} />
             </div>
-            <h2 className="font-serif text-4xl text-sidebar-foreground mb-4">Meal completed</h2>
-            <p className="text-sidebar-foreground/65 mb-2">Estimated: {formatTime(estimatedSeconds)}</p>
+            <h2 className="font-serif text-4xl text-sidebar-foreground mb-4">{t('mealCompleted')}</h2>
+            <p className="text-sidebar-foreground/65 mb-2">{t('estimated')}: {formatTime(estimatedSeconds)}</p>
             <p className={cn('text-lg mb-8', overEstimate ? 'text-[oklch(0.82_0.10_70)]' : 'text-[oklch(0.72_0.11_145)]')}>
-              You took {formatTime(elapsedSeconds)} · {overEstimate ? `${formatTime(elapsedSeconds - estimatedSeconds)} over` : `${formatTime(estimatedSeconds - elapsedSeconds)} faster`}
+              {t('youTook')} {formatTime(elapsedSeconds)} · {overEstimate ? `${formatTime(elapsedSeconds - estimatedSeconds)} ${t('over')}` : `${formatTime(estimatedSeconds - elapsedSeconds)} faster`}
             </p>
             <Link href="/app" className="inline-flex items-center gap-2 bg-sidebar-primary text-sidebar-primary-foreground px-6 py-3 rounded-md font-medium hover:bg-sidebar-primary/90 transition-colors">
-              Back to kitchen
+              {t('backToKitchen')}
             </Link>
           </div>
         )}
@@ -228,10 +230,10 @@ export default function CookModePage({ params }: { params: Promise<{ id: string 
           <div className="max-w-2xl mx-auto flex items-center gap-4">
             <button onClick={goPrev} disabled={currentStep === 0} className="flex items-center gap-2 px-4 py-3 rounded-md border border-sidebar-border text-sidebar-foreground/60 hover:text-sidebar-foreground hover:border-sidebar-foreground/30 transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
               <ArrowLeft className="w-4 h-4" strokeWidth={1.5} />
-              Prev
+              <span className="hidden sm:inline">{t('previousStep')}</span>
             </button>
             <button onClick={completeCurrentStep} className="flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-md bg-sidebar-primary text-sidebar-primary-foreground font-medium hover:bg-sidebar-primary/90 transition-colors">
-              {currentStep === totalSteps - 1 ? 'Finish' : 'Seguimos'}
+              {currentStep === totalSteps - 1 ? t('finish') : t('nextStepButton')}
               {currentStep === totalSteps - 1 ? <Check className="w-4 h-4" strokeWidth={2} /> : <ArrowRight className="w-4 h-4" strokeWidth={1.5} />}
             </button>
           </div>

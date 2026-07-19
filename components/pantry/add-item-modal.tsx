@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { usePantry } from '@/lib/hooks'
+import { useT } from '@/lib/i18n'
 import { X, Camera, ScanBarcode, FileText, Pencil, Check, Loader2, AlertCircle, Plus, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Category, StorageLocation } from '@/lib/types'
@@ -83,6 +84,7 @@ declare global {
 }
 
 function ReviewList({ items, onChange }: { items: ReviewItem[]; onChange: (items: ReviewItem[]) => void }) {
+  const t = useT()
   function update(id: string, patch: Partial<ReviewItem>) {
     onChange(items.map((i) => (i.id === id ? { ...i, ...patch } : i)))
   }
@@ -98,7 +100,7 @@ function ReviewList({ items, onChange }: { items: ReviewItem[]; onChange: (items
               type="button"
               onClick={() => update(item.id, { confirmed: !item.confirmed })}
               className={cn('w-5 h-5 mt-0.5 rounded border flex items-center justify-center flex-shrink-0', item.confirmed ? 'bg-primary border-primary' : 'border-border')}
-              aria-label={item.confirmed ? 'Exclude item' : 'Include item'}
+              aria-label={item.confirmed ? t('excludeItem') : t('includeItem')}
             >
               {item.confirmed && <Check className="w-3 h-3 text-primary-foreground" strokeWidth={2.5} />}
             </button>
@@ -106,7 +108,7 @@ function ReviewList({ items, onChange }: { items: ReviewItem[]; onChange: (items
               <input
                 value={item.name}
                 onChange={(e) => update(item.id, { name: e.target.value })}
-                placeholder="Item name"
+                placeholder={t('itemName')}
                 className="col-span-2 px-2 py-1.5 text-sm border border-border rounded bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
               />
               <input
@@ -120,7 +122,7 @@ function ReviewList({ items, onChange }: { items: ReviewItem[]; onChange: (items
               <input
                 value={item.unit}
                 onChange={(e) => update(item.id, { unit: e.target.value })}
-                placeholder="unit"
+                placeholder={t('unit')}
                 className="px-2 py-1.5 text-sm border border-border rounded bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
               />
               <select
@@ -142,7 +144,7 @@ function ReviewList({ items, onChange }: { items: ReviewItem[]; onChange: (items
         onClick={() => onChange([...items, newReviewItem({ confirmed: true })])}
         className="w-full flex items-center justify-center gap-1.5 border border-dashed border-border rounded-lg py-2 text-xs text-muted-foreground hover:text-foreground hover:border-muted-foreground/50 transition-colors"
       >
-        <Plus className="w-3.5 h-3.5" strokeWidth={2} /> Add row manually
+        <Plus className="w-3.5 h-3.5" strokeWidth={2} /> {t('addRowManually')}
       </button>
     </div>
   )

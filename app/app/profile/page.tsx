@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useProfile } from '@/lib/hooks'
+import { useT } from '@/lib/i18n'
 import { User, Bell, Leaf, Home, Check, LogOut } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -22,6 +23,7 @@ const dietaryOptions = [
 export default function ProfilePage() {
   const router = useRouter()
   const { profile, updateProfile } = useProfile()
+  const t = useT()
   const [saved, setSaved] = useState(false)
 
   // Local form state
@@ -65,8 +67,8 @@ export default function ProfilePage() {
     <div className="px-6 py-8 max-w-2xl mx-auto pb-24 lg:pb-8">
       {/* Header */}
       <div className="mb-8">
-        <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1">Account</p>
-        <h1 className="font-serif text-3xl text-foreground">Profile</h1>
+        <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1">{t('account')}</p>
+        <h1 className="font-serif text-3xl text-foreground">{t('profileLabel')}</h1>
       </div>
 
       {/* Avatar + name */}

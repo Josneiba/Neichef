@@ -67,7 +67,6 @@ function matchesMealType(recipe: Ranked, mealType: 'any' | 'breakfast' | 'lunch'
 
 export async function GET(request: Request) {
   try {
-    const userId = await getUserId()
     const { searchParams } = new URL(request.url)
     const parsed = querySchema.safeParse(Object.fromEntries(searchParams.entries()))
 
@@ -79,15 +78,31 @@ export async function GET(request: Request) {
     const flavor = parsed.success ? parsed.data.flavor ?? 'any' : 'any'
     const mealType = parsed.success ? parsed.data.mealType ?? 'any' : 'any'
 
-    const [pantry, savedRows] = await Promise.all([
-      prisma.pantryItem.findMany({ where: { userId } }),
-      prisma.savedRecipe.findMany({ where: { userId }, select: { recipeId: true } }),
-    ])
+    // Try to get user ID, but don't fail if user is not authenticated
+    let userId: string | null = null
+    try {
+      userId = await getUserId()
+    } catch {
+      userId = null
+    }
+
+    // Fetch pantry items only if user is authenticated and no ingredients were manually provided
+    let pantry: { name: string; expirationDate: Date }[] = []
+    let savedIds = new Set<string>()
+    
+    if (userId && requestedIngredients.length === 0) {
+      const [pantryItems, savedRows] = await Promise.all([
+        prisma.pantryItem.findMany({ where: { userId } }),
+        prisma.savedRecipe.findMany({ where: { userId }, select: { recipeId: true } }),
+      ])
+      pantry = pantryItems
+      savedIds = new Set(savedRows.map((s) => s.recipeId))
+    }
+
     const pantryNames = requestedIngredients.length > 0 ? requestedIngredients : pantry.map((p) => p.name)
     const pantryForMatching = requestedIngredients.length > 0
       ? requestedIngredients.map((name) => ({ name, expirationDate: new Date('2999-12-31') }))
       : pantry
-    const savedIds = new Set(savedRows.map((s) => s.recipeId))
 
     console.info('[recipes:suggestions] building suggestions', {
       userId,
@@ -99,19 +114,28 @@ export async function GET(request: Request) {
     })
 
     // Get matching recipes already in DB
-    const dbRecipes = await prisma.recipe.findMany({ where: { OR: [{ isPublic: true }, { userId }] }, include: { ingredients: true, steps: true } })
-
-    const normalizedDb: Ranked[] = dbRecipes.map((r) => {
-      const match = matchIngredientsToPantry(r.ingredients, pantryForMatching)
-      return { ...r, ...match, isSaved: savedIds.has(r.id), isOwner: r.userId === userId }
-    })
+    let normalizedDb: Ranked[] = []
+    try {
+      const dbRecipes = await prisma.recipe.findMany({ where: { OR: [{ isPublic: true }, { userId }] }, include: { ingredients: true, steps: true } })
+      normalizedDb = dbRecipes.map((r) => {
+        const match = matchIngredientsToPantry(r.ingredients, pantryForMatching)
+        return { ...r, ...match, isSaved: savedIds.has(r.id), isOwner: r.userId === userId }
+      })
+    } catch (err) {
+      console.warn('[recipes:suggestions] database query failed, will use external recipes only', err)
+    }
 
     // External results
-    const external: Ranked[] = (await searchRecipesByIngredients(pantryNames)).map((recipe) => {
-      const ingredients = Array.isArray(recipe.ingredients) ? recipe.ingredients : []
-      const match = matchIngredientsToPantry(ingredients, pantryForMatching)
-      return { ...recipe, ...match, isSaved: savedIds.has(recipe.id), isOwner: false }
-    })
+    let external: Ranked[] = []
+    try {
+      external = (await searchRecipesByIngredients(pantryNames)).map((recipe) => {
+        const ingredients = Array.isArray(recipe.ingredients) ? recipe.ingredients : []
+        const match = matchIngredientsToPantry(ingredients, pantryForMatching)
+        return { ...recipe, ...match, isSaved: savedIds.has(recipe.id), isOwner: false }
+      })
+    } catch (err) {
+      console.error('[recipes:suggestions] external search failed', err)
+    }
 
     // Merge and dedupe by title
     const combinedMap = new Map<string, Ranked>()
