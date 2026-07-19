@@ -11,9 +11,22 @@ import { env } from '@/lib/env'
 // pantry, recipes, notifications, budget, ...) was failing.
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient }
 
+function makeDatabaseUrl(url: string) {
+  try {
+    const parsed = new URL(url)
+    const host = parsed.hostname.toLowerCase()
+    if (process.env.NODE_ENV === 'development' && (host.endsWith('.supabase.co') || host.endsWith('.supabase.com') || process.env.PGSSLMODE === 'no-verify')) {
+      parsed.searchParams.set('sslmode', 'no-verify')
+    }
+    return parsed.toString()
+  } catch {
+    return url
+  }
+}
+
 function getPrismaClient() {
   if (!globalForPrisma.prisma) {
-    const adapter = new PrismaPg({ connectionString: env.DATABASE_URL })
+    const adapter = new PrismaPg({ connectionString: makeDatabaseUrl(env.DATABASE_URL) })
 
     globalForPrisma.prisma = new PrismaClient({
       adapter,

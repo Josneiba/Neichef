@@ -3,6 +3,7 @@ import { z } from 'zod'
 const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   DIRECT_URL: z.string().optional().transform((value) => (value === '' ? undefined : value)),
+  PGSSLMODE: z.string().optional(),
   NEXT_PUBLIC_SUPABASE_URL: z.string().min(1),
   NEXT_PUBLIC_APP_URL: z.string().min(1).default('http://localhost:3000'),
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),

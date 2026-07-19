@@ -188,7 +188,6 @@ export const translations = {
     previousStep: 'Previous step',
     nextStepButton: 'Next step',
     completeRecipe: 'Complete recipe',
-    finish: 'Finish',
     over: 'over',
   },
   es: {
@@ -271,10 +270,7 @@ export const translations = {
     yesStartCountdown: 'Sí, iniciar cuenta atrás',
     stepEstimate: 'Estimado del paso',
     totalElapsed: 'Tiempo transcurrido',
-    finish: 'Finalizar',
     nextStep: 'Seguimos',
-    previousStep: 'Paso anterior',
-    nextStepButton: 'Siguiente paso',
     over: 'de más',
     mealCompleted: 'Comida completada',
     estimated: 'Estimado',
@@ -365,6 +361,7 @@ export const translations = {
     previousStep: 'Paso anterior',
     nextStepButton: 'Siguiente paso',
     completeRecipe: 'Completar receta',
+    finish: 'Finalizar',
   },
 } as const
 

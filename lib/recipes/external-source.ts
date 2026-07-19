@@ -22,12 +22,21 @@ function textField(value: unknown): string {
 function ingredientSearchTerms(name: string) {
   const normalized = normalizeFoodName(name)
   if (!normalized) return []
-  const words = normalized.split(' ')
+  const words = normalized.split(' ').filter(Boolean)
   const terms = [normalized]
-  if (words.length > 1) terms.push(words[words.length - 1])
+  if (words.length > 1) {
+    terms.push(...words)
+    terms.push(words[0])
+    terms.push(words[words.length - 1])
+    terms.push(words.slice(0, 2).join(' '))
+    terms.push(words.slice(-2).join(' '))
+    for (let i = 0; i < words.length - 1; i += 1) {
+      terms.push(`${words[i]} ${words[i + 1]}`)
+    }
+  }
   if (normalized.endsWith('es')) terms.push(normalized.slice(0, -2))
   if (normalized.endsWith('s')) terms.push(normalized.slice(0, -1))
-  return [...new Set(terms)].map((term) => term.replace(/\s+/g, '_'))
+  return [...new Set(terms)].filter(Boolean)
 }
 
 function parseMeasure(measure: string) {
@@ -198,19 +207,37 @@ export async function searchRecipesByIngredients(ingredients: string[]): Promise
   const idCounts: Record<string, number> = {}
 
   for (const ing of ingredients.slice(0, 8)) {
-    for (const term of ingredientSearchTerms(ing)) {
+    const terms = ingredientSearchTerms(ing)
+    let foundMeals: MealDbMeal[] = []
+
+    for (const term of terms) {
       try {
         const res = await fetch(`https://www.themealdb.com/api/json/v1/1/filter.php?i=${encodeURIComponent(term)}`)
         const data = await res.json()
-        const meals = Array.isArray(data?.meals) ? data.meals : []
-        for (const m of meals) {
-          const mealId = textField((m as MealDbMeal).idMeal)
-          if (mealId) idCounts[mealId] = (idCounts[mealId] || 0) + 1
-        }
-        if (meals.length > 0) break
+        foundMeals = Array.isArray(data?.meals) ? data.meals : []
+        if (foundMeals.length > 0) break
       } catch {
         // ignore individual failures
       }
+    }
+
+    if (foundMeals.length === 0) {
+      const fallbackWords = normalizeFoodName(ing).split(' ').filter(Boolean)
+      for (const word of fallbackWords) {
+        try {
+          const res = await fetch(`https://www.themealdb.com/api/json/v1/1/filter.php?i=${encodeURIComponent(word)}`)
+          const data = await res.json()
+          foundMeals = Array.isArray(data?.meals) ? data.meals : []
+          if (foundMeals.length > 0) break
+        } catch {
+          // ignore individual failures
+        }
+      }
+    }
+
+    for (const m of foundMeals) {
+      const mealId = textField((m as MealDbMeal).idMeal)
+      if (mealId) idCounts[mealId] = (idCounts[mealId] || 0) + 1
     }
   }
 

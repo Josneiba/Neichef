@@ -4,6 +4,7 @@ import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AlertCircle, Camera, Loader2, Search, X } from 'lucide-react'
 import { useT } from '@/lib/i18n'
+import { parseIngredientList } from '@/lib/recipes/enrich'
 
 type FinderMode = 'photo' | 'ingredients'
 type Flavor = 'any' | 'sweet' | 'savory'
@@ -24,12 +25,6 @@ function fileToBase64(file: File): Promise<string> {
   })
 }
 
-function parseIngredients(text: string) {
-  return text
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean)
-}
 
 export function RecipeFinderModal({ initialMode, onClose }: RecipeFinderModalProps) {
   const t = useT()
@@ -76,13 +71,13 @@ export function RecipeFinderModal({ initialMode, onClose }: RecipeFinderModalPro
   }
 
   function findRecipes() {
-    const ingredients = parseIngredients(ingredientText)
+    const ingredients = parseIngredientList(ingredientText)
     if (ingredients.length === 0) {
       setError(t('addAtLeastOneIngredient'))
       return
     }
     const params = new URLSearchParams({
-      ingredients: ingredients.join(','),
+      ingredients: ingredients.join(', '),
       matchMode,
       flavor,
       mealType,

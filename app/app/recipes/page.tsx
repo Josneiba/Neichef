@@ -6,6 +6,7 @@ import { useT } from '@/lib/i18n'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { useRecipes } from '@/lib/hooks'
+import { parseIngredientList } from '@/lib/recipes/enrich'
 import { EmptyState } from '@/components/ui/empty-state'
 import { BookOpen, Clock, Users, Bookmark, BookmarkCheck, ArrowRight, Plus, Search, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -24,6 +25,7 @@ type DifficultyFilter = 'all' | 'easy' | 'medium' | 'hard'
 type CostFilter = 'all' | 'low' | 'medium' | 'high'
 
 function RecipeCard({ recipe, onToggleSave }: { recipe: Recipe; onToggleSave: (id: string) => void }) {
+  const t = useT()
   const matchRatio = recipe.pantryMatchCount / Math.max(recipe.totalIngredients, 1)
   const totalTime = recipe.prepTimeMinutes + recipe.cookTimeMinutes
   const img = recipe.imageUrl ?? recipeImages[recipe.id]
@@ -115,12 +117,13 @@ function RecipesContent() {
     const urlMaxTime = searchParams.get('maxTimeMinutes')
     const flavor = searchParams.get('flavor')
     const mealType = searchParams.get('mealType')
+    const parsedIngredients = parseIngredientList(ingredients)
     if (urlMaxTime) setMaxTime(urlMaxTime === 'any' ? 'any' : Number(urlMaxTime))
     setIngredientText(ingredients)
     setMatchMode(searchParams.get('matchMode') === 'exact' ? 'exact' : 'flexible')
     setTab('suggested')
     void findRecipesByIngredients(
-      ingredients.split(',').map((item) => item.trim()).filter(Boolean),
+      parsedIngredients,
       searchParams.get('matchMode') === 'exact' ? 'exact' : 'flexible',
       {
         maxTimeMinutes: urlMaxTime ?? undefined,
@@ -142,10 +145,7 @@ function RecipesContent() {
 
   function handleIngredientSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const ingredients = ingredientText
-      .split(',')
-      .map((item) => item.trim())
-      .filter(Boolean)
+    const ingredients = parseIngredientList(ingredientText)
     if (ingredients.length === 0) {
       void usePantrySuggestions()
       return

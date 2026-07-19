@@ -6,7 +6,20 @@ if (!connectionString) {
   throw new Error('DATABASE_URL is not set. Add it to .env before running the seed script.')
 }
 
-const adapter = new PrismaPg({ connectionString })
+function makeDatabaseUrl(url: string) {
+  try {
+    const parsed = new URL(url)
+    const host = parsed.hostname.toLowerCase()
+    if (process.env.NODE_ENV === 'development' && (host.endsWith('.supabase.co') || host.endsWith('.supabase.com') || process.env.PGSSLMODE === 'no-verify')) {
+      parsed.searchParams.set('sslmode', 'no-verify')
+    }
+    return parsed.toString()
+  } catch {
+    return url
+  }
+}
+
+const adapter = new PrismaPg({ connectionString: makeDatabaseUrl(connectionString) })
 const prisma = new PrismaClient({ adapter })
 
 async function main() {

@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { searchRecipesByIngredients, type RecipeSearchResult } from '@/lib/recipes/external-source'
-import { ingredientMatchesPantry, isStapleIngredient, matchIngredientsToPantry } from '@/lib/recipes/enrich'
+import { ingredientMatchesPantry, isStapleIngredient, matchIngredientsToPantry, parseIngredientList } from '@/lib/recipes/enrich'
 
 const querySchema = z.object({
   maxTimeMinutes: z.string().optional(),
@@ -25,9 +25,7 @@ async function getUserId() {
 type Ranked = RecipeSearchResult
 
 function parseIngredientQuery(value: string | undefined) {
-  return (value ?? '')
-    .split(',')
-    .map((item) => item.trim())
+  return parseIngredientList(value ?? '')
     .filter((item) => item && !isStapleIngredient(item))
     .slice(0, 8)
 }
