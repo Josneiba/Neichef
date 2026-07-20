@@ -37,8 +37,7 @@ export async function GET() {
         }})
 
         if (user.email) {
-          // Fire-and-forget
-          sendNotificationEmail(user.email, `${item.name} expires soon`, `${item.name} expires on ${item.expirationDate.toISOString().split('T')[0]}`)
+          void sendNotificationEmail(user.email, `${item.name} expires soon`, `${item.name} expires on ${item.expirationDate.toISOString().split('T')[0]}`)
         }
       }
 
@@ -57,7 +56,7 @@ export async function GET() {
         }})
 
         if (user.email) {
-          sendNotificationEmail(user.email, `${item.name} has expired`, `${item.name} expired on ${item.expirationDate.toISOString().split('T')[0]}`)
+          void sendNotificationEmail(user.email, `${item.name} has expired`, `${item.name} expired on ${item.expirationDate.toISOString().split('T')[0]}`)
         }
       }
     }

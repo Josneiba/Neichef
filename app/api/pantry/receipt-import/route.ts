@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { createRateLimiter } from '@/lib/rate-limit'
 
 const schema = z.object({ imageUrl: z.string().url().optional(), imageBase64: z.string().optional() })
+const limiter = createRateLimiter({ windowMs: 60_000, max: 8 })
 
 async function getUserId() {
   const supabase = await createSupabaseServerClient()
@@ -27,6 +29,11 @@ export async function POST(request: Request) {
 
   if (!parsed.data.imageUrl && !parsed.data.imageBase64) {
     return NextResponse.json({ error: 'No receipt image provided' }, { status: 400 })
+  }
+
+  const rateLimitResult = await limiter.check(userId || 'anonymous')
+  if (!rateLimitResult.allowed) {
+    return NextResponse.json({ error: 'Too many requests. Please try again shortly.' }, { status: 429 })
   }
 
   console.info('[pantry:receipt-import] receipt received; OCR placeholder active', { userId })
