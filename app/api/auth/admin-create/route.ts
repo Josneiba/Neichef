@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { env } from '@/lib/env'
 import { prisma } from '@/lib/prisma'
+import { isDbAvailable, reportDbFailure } from '@/lib/dbCircuit'
 
 const schema = z.object({
   name: z.string().min(2),
@@ -51,19 +52,24 @@ export async function POST(request: Request) {
 
   // Try to insert into application DB (best-effort)
   try {
-    await prisma.user.create({
-      data: {
-        id: payload.id,
-        email,
-        name,
-        householdSize,
-        dietaryPreferences: [],
-        notificationDaysAhead: 3,
-      },
-    })
-  } catch (err) {
-    // If DB not ready, proceed — user exists in Supabase Auth
+    if (isDbAvailable()) {
+      await prisma.user.create({
+        data: {
+          id: payload.id,
+          email,
+          name,
+          householdSize,
+          dietaryPreferences: [],
+          notificationDaysAhead: 3,
+        },
+      })
+    } else {
+      console.warn('DB unavailable; skipping local user create for admin-create')
+    }
+  } catch (err: any) {
     console.warn('prisma.user.create failed in admin-create:', err)
+    const msg = String((err as any)?.message ?? err)
+    if (msg.includes('ECIRCUITBREAKER') || msg.includes('too many authentication')) reportDbFailure()
   }
 
   return NextResponse.json({ success: true, user: { id: payload.id, email } })

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { isDbAvailable, reportDbFailure } from '@/lib/dbCircuit'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 
 async function getUserId() {
@@ -12,6 +13,7 @@ async function getUserId() {
 export async function GET() {
   try {
     const userId = await getUserId()
+    if (!isDbAvailable()) return NextResponse.json({ error: 'Service unavailable' }, { status: 503 })
     const entries = await prisma.budgetLedgerEntry.findMany({ where: { userId } })
 
     const stats = {
@@ -23,7 +25,9 @@ export async function GET() {
     }
 
     return NextResponse.json(stats)
-  } catch {
+  } catch (err: any) {
+    const msg = String((err as any)?.message ?? err)
+    if (msg.includes('ECIRCUITBREAKER') || msg.includes('too many authentication')) reportDbFailure()
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 }

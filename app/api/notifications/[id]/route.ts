@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { isDbAvailable, reportDbFailure } from '@/lib/dbCircuit'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 
 async function getUserId() {
@@ -13,12 +14,15 @@ export async function PATCH(_request: Request, { params }: { params: Promise<{ i
   try {
     const userId = await getUserId()
     const { id } = await params
+    if (!isDbAvailable()) return NextResponse.json({ error: 'Service unavailable' }, { status: 503 })
     const result = await prisma.notification.updateMany({ where: { id, userId }, data: { isRead: true } })
     if (result.count === 0) {
       return NextResponse.json({ error: 'Notification not found' }, { status: 404 })
     }
     return NextResponse.json({ success: true })
   } catch {
+    const msg = String((arguments[0] as any)?.message ?? '')
+    if (msg.includes('ECIRCUITBREAKER') || msg.includes('too many authentication')) reportDbFailure()
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 }

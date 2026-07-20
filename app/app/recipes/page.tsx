@@ -103,13 +103,14 @@ function RecipeCard({ recipe, onToggleSave }: { recipe: Recipe; onToggleSave: (i
 function RecipesContent() {
   const t = useT()
   const searchParams = useSearchParams()
-  const { recipes, suggestedRecipes, savedRecipes, toggleSave, findRecipesByIngredients, usePantrySuggestions, isLoadingSuggestions, suggestionError } = useRecipes()
+  const { recipes, suggestedRecipes, savedRecipes, toggleSave, findRecipesByIngredients, usePantrySuggestions, isLoadingSuggestions, isLoadingRecipes, suggestionError } = useRecipes()
   const [tab, setTab] = useState<Tab>('suggested')
   const [diffFilter, setDiffFilter] = useState<DifficultyFilter>('all')
   const [costFilter, setCostFilter] = useState<CostFilter>('all')
   const [maxTime, setMaxTime] = useState<number | 'any'>('any')
   const [ingredientText, setIngredientText] = useState('')
   const [matchMode, setMatchMode] = useState<'flexible' | 'exact'>('flexible')
+  const [fallbackRecipes, setFallbackRecipes] = useState<Recipe[] | null>(null)
 
   useEffect(() => {
     const ingredients = searchParams.get('ingredients')
@@ -142,6 +143,38 @@ function RecipesContent() {
     if (maxTime !== 'any' && r.prepTimeMinutes + r.cookTimeMinutes > maxTime) return false
     return true
   })
+
+  const isLoading = isLoadingSuggestions || isLoadingRecipes
+  const emptyStateAction = tab === 'saved'
+    ? <Link href="/app/recipes" className="text-sm font-medium text-primary hover:underline">Browse suggested recipes</Link>
+    : tab === 'mine'
+      ? <Link href="/app/recipes/new" className="text-sm font-medium text-primary hover:underline">Add a recipe</Link>
+      : <button type="button" onClick={() => { setDiffFilter('all'); setCostFilter('all'); setMaxTime('any') }} className="text-sm font-medium text-primary hover:underline">Reset filters</button>
+
+  // When there are no filtered results for suggestions, try fetching a
+  // fallback list from the public `/api/recipes` endpoint (which itself
+  // returns external fallbacks when DB is unavailable). This prevents the
+  // empty state from appearing when there are available recommendations.
+  useEffect(() => {
+    let cancelled = false
+    if (tab !== 'suggested' || isLoading) return
+    if (filtered.length > 0) {
+      setFallbackRecipes(null)
+      return
+    }
+    ;(async () => {
+      try {
+        const res = await fetch('/api/recipes', { credentials: 'same-origin' })
+        if (!res.ok) return
+        const data = await res.json()
+        if (cancelled) return
+        if (Array.isArray(data) && data.length > 0) setFallbackRecipes(data)
+      } catch {
+        // ignore — we'll keep showing the empty state
+      }
+    })()
+    return () => { cancelled = true }
+  }, [tab, isLoading, filtered])
 
   function handleIngredientSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -255,12 +288,32 @@ function RecipesContent() {
       </div>
 
       {/* Recipe grid */}
-      {filtered.length === 0 ? (
-        <EmptyState
-          icon={BookOpen}
-          title={tab === 'saved' ? 'No saved recipes' : tab === 'mine' ? 'No recipes created yet' : 'No recipes match filters'}
-          description={tab === 'saved' ? 'Save recipes from the suggestions tab to find them here.' : tab === 'mine' ? 'Create a recipe manually, from a photo, or from a document.' : 'Try adjusting the filters to see more options.'}
-        />
+      {isLoading ? (
+        <div className="rounded-xl border border-border bg-card p-10 text-center">
+          <Loader2 className="mx-auto mb-4 h-6 w-6 animate-spin text-primary" strokeWidth={2} />
+          <p className="text-sm text-muted-foreground">Loading recipes…</p>
+        </div>
+      ) : filtered.length === 0 ? (
+        fallbackRecipes && fallbackRecipes.length > 0 ? (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {fallbackRecipes.map((recipe, idx) => (
+                <RecipeCard key={`${recipe.id}-${idx}`} recipe={recipe} onToggleSave={toggleSave} />
+              ))}
+          </div>
+        ) : (
+          <EmptyState
+            icon={BookOpen}
+            title={tab === 'saved' ? 'No saved recipes' : tab === 'mine' ? 'No recipes created yet' : 'No recipes match filters'}
+            description={tab === 'saved' ? 'Save recipes from the suggestions tab to find them here.' : tab === 'mine' ? 'Create a recipe manually, from a photo, or from a document.' : 'Try adjusting the filters to see more options.'}
+            action={
+              tab === 'saved'
+                ? <Link href="/app/recipes" className="text-sm font-medium text-primary hover:underline">Browse suggested recipes</Link>
+                : tab === 'mine'
+                  ? <Link href="/app/recipes/new" className="text-sm font-medium text-primary hover:underline">Add a recipe</Link>
+                  : <button type="button" onClick={() => { setDiffFilter('all'); setCostFilter('all'); setMaxTime('any'); void usePantrySuggestions() }} className="text-sm font-medium text-primary hover:underline">Reset filters</button>
+            }
+          />
+        )
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {filtered.map((recipe) => (

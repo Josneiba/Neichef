@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
+import { isDbAvailable, reportDbFailure, markDbSuccess } from '@/lib/dbCircuit'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { apiError, apiSuccess } from '@/lib/api'
 import { fetchRandomMeals } from '@/lib/recipes/external-source'
@@ -52,22 +53,31 @@ export async function GET() {
   let pantryItems: { name: string; expirationDate: Date }[] = []
   let savedIds = new Set<string>()
   try {
-    recipes = await prisma.recipe.findMany({
-      where: userId ? { OR: [{ isPublic: true }, { userId }] } : { isPublic: true },
-      include: { ingredients: true, steps: true },
-      orderBy: { createdAt: 'desc' },
-    })
+    if (isDbAvailable()) {
+      recipes = await prisma.recipe.findMany({
+        where: userId ? { OR: [{ isPublic: true }, { userId }] } : { isPublic: true },
+        include: { ingredients: true, steps: true },
+        orderBy: { createdAt: 'desc' },
+      })
 
-    if (userId) {
-      const [pantry, saved] = await Promise.all([
-        prisma.pantryItem.findMany({ where: { userId }, select: { name: true, expirationDate: true } }),
-        prisma.savedRecipe.findMany({ where: { userId }, select: { recipeId: true } }),
-      ])
-      pantryItems = pantry
-      savedIds = new Set(saved.map((s) => s.recipeId))
+      if (userId) {
+        const [pantry, saved] = await Promise.all([
+          prisma.pantryItem.findMany({ where: { userId }, select: { name: true, expirationDate: true } }),
+          prisma.savedRecipe.findMany({ where: { userId }, select: { recipeId: true } }),
+        ])
+        pantryItems = pantry
+        savedIds = new Set(saved.map((s) => s.recipeId))
+      }
+
+      markDbSuccess()
+    } else {
+      console.warn('[recipes:list] DB not available, skipping DB recipes')
+      recipes = null
     }
-  } catch {
-    console.warn('[recipes:list] database unavailable, falling back to external recipes')
+  } catch (err: any) {
+    console.warn('[recipes:list] database unavailable, falling back to external recipes', err)
+    const msg = String(err?.message ?? err)
+    if (msg.includes('ECIRCUITBREAKER') || msg.includes('too many authentication')) reportDbFailure()
     recipes = null
   }
 
@@ -150,6 +160,6 @@ export async function POST(request: Request) {
 
     return apiSuccess({ ...recipe, isOwner: true, isSaved: false }, 201)
   } catch {
-    return apiError('Unauthorized', 'UNAUTHORIZED')
+    return apiError('Service unavailable', 'UNAVAILABLE')
   }
 }

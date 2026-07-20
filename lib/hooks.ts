@@ -81,6 +81,7 @@ export function useRecipes() {
   const [suggestions, setSuggestions] = useState<Recipe[] | null>(null)
   const [suggestionError, setSuggestionError] = useState<string | null>(null)
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false)
+  const [isLoadingRecipes, setIsLoadingRecipes] = useState(false)
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set())
 
   const loadSuggestions = useCallback(async (options?: {
@@ -113,6 +114,7 @@ export function useRecipes() {
   }, [])
 
   useEffect(() => {
+    setIsLoadingRecipes(true)
     fetch('/api/recipes', { credentials: 'same-origin' })
       .then((res) => (res.ok ? res.json() : Promise.reject(res)))
       .then((data) => {
@@ -122,6 +124,7 @@ export function useRecipes() {
         setSavedIds(new Set(normalized.filter((r) => r.isSaved).map((r) => r.id)))
       })
       .catch(() => setRecipes([]))
+      .finally(() => setIsLoadingRecipes(false))
 
     // Personalized, pantry-aware ranking. Falls back to client-side sorting
     // of the general recipe list (below) when the person isn't signed in or
@@ -183,7 +186,7 @@ export function useRecipes() {
   ) => loadSuggestions({ ingredients, matchMode, ...options }), [loadSuggestions])
   const usePantrySuggestions = useCallback(() => loadSuggestions(), [loadSuggestions])
 
-  return { recipes, suggestedRecipes, savedRecipes, toggleSave, addCustomRecipe, findRecipesByIngredients, usePantrySuggestions, isLoadingSuggestions, suggestionError }
+  return { recipes, suggestedRecipes, savedRecipes, toggleSave, addCustomRecipe, findRecipesByIngredients, usePantrySuggestions, isLoadingSuggestions, isLoadingRecipes, suggestionError }
 }
 
 /**

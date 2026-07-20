@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { isDbAvailable, reportDbFailure } from '@/lib/dbCircuit'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { resolveRecipeId } from '@/lib/recipes/external-source'
 
@@ -23,14 +24,13 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     if (!recipeId) {
       return NextResponse.json({ error: 'Recipe not found' }, { status: 404 })
     }
-    await prisma.savedRecipe.upsert({
-      where: { userId_recipeId: { userId, recipeId } },
-      update: {},
-      create: { userId, recipeId },
-    })
+    if (!isDbAvailable()) return NextResponse.json({ error: 'Service unavailable' }, { status: 503 })
+    await prisma.savedRecipe.upsert({ where: { userId_recipeId: { userId, recipeId } }, update: {}, create: { userId, recipeId } })
     return NextResponse.json({ success: true, recipeId })
   } catch (err) {
     console.error('Failed to save recipe:', err)
+    const msg = String((err as any)?.message ?? err)
+    if (msg.includes('ECIRCUITBREAKER') || msg.includes('too many authentication')) reportDbFailure()
     return NextResponse.json({ error: 'Unable to save recipe' }, { status: 400 })
   }
 }
@@ -40,10 +40,13 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     const userId = await getUserId()
     const { id } = await params
     const recipeId = (await resolveRecipeId(id)) ?? id
+    if (!isDbAvailable()) return NextResponse.json({ error: 'Service unavailable' }, { status: 503 })
     await prisma.savedRecipe.deleteMany({ where: { userId, recipeId } })
     return NextResponse.json({ success: true })
   } catch (err) {
     console.error('Failed to unsave recipe:', err)
+    const msg = String((err as any)?.message ?? err)
+    if (msg.includes('ECIRCUITBREAKER') || msg.includes('too many authentication')) reportDbFailure()
     return NextResponse.json({ error: 'Unable to unsave recipe' }, { status: 400 })
   }
 }

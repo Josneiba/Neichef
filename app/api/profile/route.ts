@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
+import { isDbAvailable, reportDbFailure, markDbSuccess } from '@/lib/dbCircuit'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { ensureUserProfile } from '@/lib/auth/profile'
 
@@ -43,14 +44,18 @@ export async function PATCH(request: Request) {
       console.warn('[profile:patch] invalid payload', parsed.error.flatten())
       return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
     }
+    if (!isDbAvailable()) return NextResponse.json({ error: 'Service unavailable' }, { status: 503 })
 
-    const profile = await prisma.user.update({
-      where: { id: userId },
-      data: parsed.data,
-    })
-
-    console.info('[profile:patch] updated profile', { userId })
-    return NextResponse.json(profile)
+    try {
+      const profile = await prisma.user.update({ where: { id: userId }, data: parsed.data })
+      markDbSuccess()
+      console.info('[profile:patch] updated profile', { userId })
+      return NextResponse.json(profile)
+    } catch (err: any) {
+      const msg = String((err as any)?.message ?? err)
+      if (msg.includes('ECIRCUITBREAKER') || msg.includes('too many authentication')) reportDbFailure()
+      throw err
+    }
   } catch (err) {
     console.error('[profile:patch] failed', err)
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

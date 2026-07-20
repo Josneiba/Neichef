@@ -19,7 +19,54 @@ export default function DashboardPage() {
 
   const freshCount = items.filter((i) => i.urgency === 'fresh').length
   const recentNotifications = notifications.filter((n) => !n.isRead).slice(0, 3)
-  const topRecipes = suggestedRecipes.slice(0, 3)
+  const fallbackRecipes = [
+    {
+      id: 'fallback-pasta',
+      title: 'Easy Tomato Pasta',
+      description: 'A quick pantry-friendly pasta recipe with pantry staples and tomato sauce.',
+      prepTimeMinutes: 10,
+      cookTimeMinutes: 15,
+      servings: 2,
+      difficulty: 'easy',
+      costLevel: 'low',
+      pantryMatchCount: 0,
+      totalIngredients: 3,
+      usesExpiringItems: false,
+      isSaved: false,
+      isOwner: false,
+    },
+    {
+      id: 'fallback-salad',
+      title: 'Chickpea Salad',
+      description: 'A fresh, simple salad that works well with canned pantry items and fresh greens.',
+      prepTimeMinutes: 10,
+      cookTimeMinutes: 0,
+      servings: 2,
+      difficulty: 'easy',
+      costLevel: 'low',
+      pantryMatchCount: 0,
+      totalIngredients: 4,
+      usesExpiringItems: false,
+      isSaved: false,
+      isOwner: false,
+    },
+    {
+      id: 'fallback-stirfry',
+      title: 'Veggie Stir-Fry',
+      description: 'A versatile stir-fry that pairs well with fresh or frozen vegetables and pantry sauces.',
+      prepTimeMinutes: 15,
+      cookTimeMinutes: 10,
+      servings: 2,
+      difficulty: 'medium',
+      costLevel: 'medium',
+      pantryMatchCount: 0,
+      totalIngredients: 5,
+      usesExpiringItems: false,
+      isSaved: false,
+      isOwner: false,
+    },
+  ]
+  const topRecipes = suggestedRecipes.length > 0 ? suggestedRecipes.slice(0, 3) : fallbackRecipes
 
   return (
     <div className="px-6 py-8 max-w-5xl mx-auto pb-24 lg:pb-8">

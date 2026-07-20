@@ -6,19 +6,18 @@ import { detectIngredients } from '@/lib/vision/detect-ingredients'
 const schema = z.object({ imageUrl: z.string().url().optional(), imageBase64: z.string().optional() })
 
 async function getUserId() {
-  const supabase = await createSupabaseServerClient()
-  const { data } = await supabase.auth.getUser()
-  if (!data.user) throw new Error('Unauthorized')
-  return data.user.id
+  try {
+    const supabase = await createSupabaseServerClient()
+    const { data } = await supabase.auth.getUser()
+    if (!data.user) throw new Error('Unauthorized')
+    return data.user.id
+  } catch {
+    return null
+  }
 }
 
 export async function POST(request: Request) {
-  let userId = ''
-  try {
-    userId = await getUserId()
-  } catch {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const userId = await getUserId()
 
   const body = await request.json()
   const parsed = schema.safeParse(body)

@@ -4,6 +4,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { searchRecipesByIngredients, type RecipeSearchResult } from '@/lib/recipes/external-source'
 import { ingredientMatchesPantry, isStapleIngredient, matchIngredientsToPantry, parseIngredientList } from '@/lib/recipes/enrich'
+import { isDbAvailable, reportDbFailure, markDbSuccess } from '@/lib/dbCircuit'
 
 const querySchema = z.object({
   maxTimeMinutes: z.string().optional(),
@@ -87,14 +88,28 @@ export async function GET(request: Request) {
     // Fetch pantry items only if user is authenticated and no ingredients were manually provided
     let pantry: { name: string; expirationDate: Date }[] = []
     let savedIds = new Set<string>()
-    
+
     if (userId && requestedIngredients.length === 0) {
-      const [pantryItems, savedRows] = await Promise.all([
-        prisma.pantryItem.findMany({ where: { userId } }),
-        prisma.savedRecipe.findMany({ where: { userId }, select: { recipeId: true } }),
-      ])
-      pantry = pantryItems
-      savedIds = new Set(savedRows.map((s) => s.recipeId))
+      if (isDbAvailable()) {
+        try {
+          const [pantryItems, savedRows] = await Promise.all([
+            prisma.pantryItem.findMany({ where: { userId } }),
+            prisma.savedRecipe.findMany({ where: { userId }, select: { recipeId: true } }),
+          ])
+          pantry = pantryItems
+          savedIds = new Set(savedRows.map((s) => s.recipeId))
+        } catch (err: any) {
+          console.warn('[recipes:suggestions] pantry/saved lookup failed; falling back to external-only', err)
+          const msg = String(err?.message ?? err)
+          if (msg.includes('ECIRCUITBREAKER') || msg.includes('too many authentication')) reportDbFailure()
+          pantry = []
+          savedIds = new Set()
+        }
+      } else {
+        // DB not available — proceed with external-only suggestions
+        pantry = []
+        savedIds = new Set()
+      }
     }
 
     const pantryNames = requestedIngredients.length > 0 ? requestedIngredients : pantry.map((p) => p.name)
@@ -114,13 +129,21 @@ export async function GET(request: Request) {
     // Get matching recipes already in DB
     let normalizedDb: Ranked[] = []
     try {
-      const dbRecipes = await prisma.recipe.findMany({ where: { OR: [{ isPublic: true }, { userId }] }, include: { ingredients: true, steps: true } })
-      normalizedDb = dbRecipes.map((r) => {
-        const match = matchIngredientsToPantry(r.ingredients, pantryForMatching)
-        return { ...r, ...match, isSaved: savedIds.has(r.id), isOwner: r.userId === userId }
-      })
-    } catch (err) {
+      if (isDbAvailable()) {
+        const dbRecipes = await prisma.recipe.findMany({ where: { OR: [{ isPublic: true }, { userId }] }, include: { ingredients: true, steps: true } })
+        normalizedDb = dbRecipes.map((r) => {
+          const match = matchIngredientsToPantry(r.ingredients, pantryForMatching)
+          return { ...r, ...match, isSaved: savedIds.has(r.id), isOwner: r.userId === userId }
+        })
+        // success — reset circuit
+        markDbSuccess()
+      } else {
+        console.warn('[recipes:suggestions] DB unavailable; skipping local recipes')
+      }
+    } catch (err: any) {
       console.warn('[recipes:suggestions] database query failed, will use external recipes only', err)
+      const msg = String((err as any)?.message ?? err)
+      if (msg.includes('ECIRCUITBREAKER') || msg.includes('too many authentication')) reportDbFailure()
     }
 
     // External results

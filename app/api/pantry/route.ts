@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
+import { isDbAvailable, reportDbFailure, markDbSuccess } from '@/lib/dbCircuit'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { apiError, apiSuccess } from '@/lib/api'
 
@@ -24,12 +25,13 @@ async function getUserId() {
 export async function GET() {
   try {
     const userId = await getUserId()
-    const items = await prisma.pantryItem.findMany({
-      where: { userId },
-      orderBy: { addedDate: 'desc' },
-    })
+    if (!isDbAvailable()) return apiError('Service unavailable', 'UNAVAILABLE')
+    const items = await prisma.pantryItem.findMany({ where: { userId }, orderBy: { addedDate: 'desc' } })
+    markDbSuccess()
     return apiSuccess(items)
-  } catch {
+  } catch (err: any) {
+    const msg = String((err as any)?.message ?? err)
+    if (msg.includes('ECIRCUITBREAKER') || msg.includes('too many authentication')) reportDbFailure()
     return apiError('Unauthorized', 'UNAUTHORIZED')
   }
 }
@@ -42,6 +44,8 @@ export async function POST(request: Request) {
     if (!parsed.success) {
       return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
     }
+
+    if (!isDbAvailable()) return apiError('Service unavailable', 'UNAVAILABLE')
 
     const item = await prisma.pantryItem.create({
       data: {
@@ -56,8 +60,11 @@ export async function POST(request: Request) {
       },
     })
 
+    markDbSuccess()
     return apiSuccess(item, 201)
-  } catch {
+  } catch (err: any) {
+    const msg = String((err as any)?.message ?? err)
+    if (msg.includes('ECIRCUITBREAKER') || msg.includes('too many authentication')) reportDbFailure()
     return apiError('Unauthorized', 'UNAUTHORIZED')
   }
 }

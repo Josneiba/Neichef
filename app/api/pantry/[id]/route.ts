@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
+import { isDbAvailable, reportDbFailure } from '@/lib/dbCircuit'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { apiError, apiSuccess } from '@/lib/api'
 
@@ -30,6 +31,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return apiError('Invalid payload')
     }
 
+    if (!isDbAvailable()) return apiError('Service unavailable', 'UNAVAILABLE')
     const item = await prisma.pantryItem.updateMany({
       where: { id, userId },
       data: {
@@ -43,7 +45,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
 
     return apiSuccess({ success: true })
-  } catch {
+  } catch (err: any) {
+    const msg = String((err as any)?.message ?? err)
+    if (msg.includes('ECIRCUITBREAKER') || msg.includes('too many authentication')) reportDbFailure()
     return apiError('Unauthorized', 'UNAUTHORIZED')
   }
 }
@@ -52,6 +56,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   try {
     const userId = await getUserId()
     const { id } = await params
+    if (!isDbAvailable()) return apiError('Service unavailable', 'UNAVAILABLE')
     const result = await prisma.pantryItem.deleteMany({ where: { id, userId } })
 
     if (result.count === 0) {
@@ -59,7 +64,9 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     }
 
     return apiSuccess({ success: true })
-  } catch {
+  } catch (err: any) {
+    const msg = String((err as any)?.message ?? err)
+    if (msg.includes('ECIRCUITBREAKER') || msg.includes('too many authentication')) reportDbFailure()
     return apiError('Unauthorized', 'UNAUTHORIZED')
   }
 }

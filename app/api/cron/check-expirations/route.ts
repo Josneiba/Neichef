@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { isDbAvailable, reportDbFailure } from '@/lib/dbCircuit'
 import { sendNotificationEmail } from '@/lib/notifications/send-email'
 
 // This route is intended to be invoked by Vercel Cron (daily). It checks for
@@ -11,6 +12,7 @@ export async function GET() {
     const now = new Date()
 
     // Fetch all users
+    if (!isDbAvailable()) return NextResponse.json({ error: 'Service unavailable' }, { status: 503 })
     const users = await prisma.user.findMany()
 
     for (const user of users) {
@@ -63,6 +65,8 @@ export async function GET() {
     return NextResponse.json({ success: true })
   } catch (err) {
     console.error('Cron check-expirations error', err)
+    const msg = String((err as any)?.message ?? err)
+    if (msg.includes('ECIRCUITBREAKER') || msg.includes('too many authentication')) reportDbFailure()
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }

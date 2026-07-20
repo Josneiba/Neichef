@@ -1,5 +1,59 @@
 import { prisma } from '@/lib/prisma'
 import { normalizeFoodName } from '@/lib/recipes/enrich'
+import { isDbAvailable, reportDbFailure, markDbSuccess } from '@/lib/dbCircuit'
+
+// In-process cache to avoid unnecessary DB calls for recently-seen external
+// recipes. This complements the shared DB circuit breaker above.
+const inMemoryRecipeCache = new Map<string, any>()
+// Queue of normalized external recipes to persist when DB recovers.
+const writeQueue: Array<{ externalId: string; normalized: ReturnType<typeof normalizeMealToRecipe> }> = []
+
+async function flushWriteQueue() {
+  if (!isDbAvailable() || writeQueue.length === 0) return
+  // process one item at a time to avoid spikes
+  const item = writeQueue.shift()
+  if (!item) return
+  try {
+    const { externalId, normalized } = item
+    const existing = await prisma.recipe.findFirst({ where: { externalId } })
+    if (existing) {
+      await prisma.recipe.update({ where: { id: existing.id }, data: {
+        title: normalized.title,
+        description: normalized.description,
+        imageUrl: normalized.imageUrl,
+        isPublic: true,
+        costLevel: normalized.costLevel,
+      }})
+    } else {
+      await prisma.recipe.create({ data: {
+        title: normalized.title,
+        description: normalized.description,
+        prepTimeMinutes: normalized.prepTimeMinutes,
+        cookTimeMinutes: normalized.cookTimeMinutes,
+        servings: normalized.servings,
+        difficulty: normalized.difficulty,
+        tags: normalized.tags,
+        imageUrl: normalized.imageUrl,
+        costLevel: normalized.costLevel,
+        isPublic: true,
+        source: 'external',
+        externalId: externalId,
+        ingredients: { create: normalized.ingredients.map((i) => ({ name: i.name, amount: i.amount, unit: i.unit })) },
+        steps: { create: normalized.steps.map((s) => ({ step: s.step, instruction: s.instruction })) },
+      }})
+    }
+    markDbSuccess()
+  } catch (err: any) {
+    console.warn('[recipes:external] flushWriteQueue failed', err)
+    reportDbFailure()
+    // put the item back for later retry
+    // careful: avoid unbounded growth — cap queue size
+    if (writeQueue.length < 500) writeQueue.unshift(item)
+  }
+}
+
+// Try draining the queue periodically
+setInterval(flushWriteQueue, 5000)
 
 type MealDbMeal = Record<string, unknown>
 export type RecipeSearchResult = {
@@ -114,12 +168,25 @@ export function normalizeMealToRecipe(meal: MealDbMeal) {
 }
 
 export async function getRecipeDetail(externalId: string) {
-  // Try DB cache first
+  // In-memory cache first
+  if (inMemoryRecipeCache.has(externalId)) return inMemoryRecipeCache.get(externalId)
+
+  // Try DB cache first (skip if circuit-breaker active)
   try {
-    const cached = await prisma.recipe.findFirst({ where: { externalId, source: 'external' }, include: { ingredients: true, steps: true } })
-    if (cached) return cached
-  } catch (err) {
+    if (isDbAvailable()) {
+      const cached = await prisma.recipe.findFirst({ where: { externalId, source: 'external' }, include: { ingredients: true, steps: true } })
+      if (cached) {
+        inMemoryRecipeCache.set(externalId, cached)
+        return cached
+      }
+    }
+    } catch (err: any) {
     console.warn('[recipes:external] cache lookup failed; fetching from TheMealDB only', { externalId, err })
+    const msg = String((err as any)?.message ?? err)
+    if (msg.includes('ECIRCUITBREAKER') || msg.includes('self-signed certificate') || msg.includes('TlsConnectionError') || msg.includes('too many authentication')) {
+      // report failure to backoff with exponential jitter
+      reportDbFailure()
+    }
   }
 
   const res = await fetch(`https://www.themealdb.com/api/json/v1/1/lookup.php?i=${encodeURIComponent(externalId)}`)
@@ -130,7 +197,13 @@ export async function getRecipeDetail(externalId: string) {
   const normalized = normalizeMealToRecipe(meal)
 
   // Cache in DB: since `externalId` is not a unique constraint, do a find + create/update
-  try {
+    try {
+    if (!isDbAvailable()) {
+      // Skip DB writes while circuit-breaker is active; enqueue for later
+      if (writeQueue.length < 500) writeQueue.push({ externalId, normalized })
+      return { ...normalized, ingredients: normalized.ingredients, steps: normalized.steps }
+    }
+
     const existing = await prisma.recipe.findFirst({ where: { externalId } })
     if (existing) {
       const updated = await prisma.recipe.update({
@@ -144,6 +217,7 @@ export async function getRecipeDetail(externalId: string) {
         },
         include: { ingredients: true, steps: true },
       })
+      inMemoryRecipeCache.set(externalId, updated)
       return updated
     }
 
@@ -167,8 +241,16 @@ export async function getRecipeDetail(externalId: string) {
       include: { ingredients: true, steps: true },
     })
 
+    inMemoryRecipeCache.set(externalId, created)
+    // DB write succeeded — reset failure count
+    markDbSuccess()
+    // attempt to flush one queued item now that DB is healthy
+    void flushWriteQueue()
     return created
-  } catch {
+  } catch (err: any) {
+    // On DB write error, report failure and return the normalized external object
+    console.warn('[recipes:external] db write failed; disabling DB for a short window', err)
+    reportDbFailure()
     return { ...normalized, ingredients: normalized.ingredients, steps: normalized.steps }
   }
 }
@@ -209,6 +291,33 @@ export async function searchRecipesByIngredients(ingredients: string[]): Promise
   if (!ingredients || ingredients.length === 0) return []
 
   const idCounts: Record<string, number> = {}
+  const nameResults: Record<string, ReturnType<typeof normalizeMealToRecipe>> = {}
+
+  // If the user provided a single free-text term that looks like a dish
+  // name (e.g. "pasta", "cookies"), try TheMealDB search by name to
+  // surface matching dishes in addition to ingredient-based results.
+  if (ingredients.length === 1) {
+    const q = ingredients[0].trim()
+    if (q.length >= 3 && q.length <= 60 && /^[a-zA-Z\s]+$/.test(q)) {
+      try {
+        const res = await fetch(`https://www.themealdb.com/api/json/v1/1/search.php?s=${encodeURIComponent(q)}`)
+        if (res.ok) {
+          const data = await res.json()
+          const meals: MealDbMeal[] = Array.isArray(data?.meals) ? data.meals : []
+          for (const m of meals) {
+            const mealId = textField(m.idMeal)
+            if (!mealId) continue
+            const normalized = normalizeMealToRecipe(m)
+            nameResults[mealId] = normalized
+            // give a boost so name-matches rank highly
+            idCounts[mealId] = (idCounts[mealId] || 0) + 10
+          }
+        }
+      } catch {
+        // ignore name-search failures
+      }
+    }
+  }
 
   for (const ing of ingredients.slice(0, 8)) {
     const terms = ingredientSearchTerms(ing)
@@ -246,15 +355,39 @@ export async function searchRecipesByIngredients(ingredients: string[]): Promise
   }
 
   // Rank by counts
-  const ranked = Object.entries(idCounts).sort((a, b) => b[1] - a[1]).slice(0, 20)
+  const ranked = Object.entries(idCounts).sort((a, b) => b[1] - a[1]).slice(0, 40)
+
+  // Batch-resolve DB-cached recipes for the top candidates to avoid many
+  // sequential DB calls (this greatly reduces connection churn).
+  const topIds = ranked.map(([id]) => id)
+  let cachedById: Record<string, any> = {}
+  try {
+    if (isDbAvailable()) {
+      const cached = await prisma.recipe.findMany({ where: { externalId: { in: topIds }, source: 'external' }, include: { ingredients: true, steps: true } })
+      cachedById = Object.fromEntries(cached.map((c: any) => [String(c.externalId), c]))
+      // prime in-memory cache
+      for (const c of cached) inMemoryRecipeCache.set(String(c.externalId), c)
+    }
+  } catch (err: any) {
+    console.warn('[recipes:external] batch cache lookup failed', err)
+    const msg = String((err as any)?.message ?? err)
+    if (msg.includes('ECIRCUITBREAKER') || msg.includes('too many authentication')) reportDbFailure()
+  }
 
   const results: RecipeSearchResult[] = []
-  for (const [id, count] of ranked) {
-    const detail = await getRecipeDetail(id)
+  for (const [id, count] of ranked.slice(0, 20)) {
+    let detail: any = null
+    if (inMemoryRecipeCache.has(id)) detail = inMemoryRecipeCache.get(id)
+    else if (cachedById[id]) detail = cachedById[id]
+    else if (nameResults[id]) detail = nameResults[id]
+    else {
+      // Resolve on-demand; respects circuit-breaker inside getRecipeDetail
+      detail = await getRecipeDetail(id)
+    }
+
     if (detail) {
-      const ingredients = 'ingredients' in detail && Array.isArray(detail.ingredients) ? detail.ingredients : []
-      // Annotate pantryMatchCount for ranking later
-      results.push({ ...detail, pantryMatchCount: count, totalIngredients: ingredients.length })
+      const ingredientsArr = 'ingredients' in detail && Array.isArray(detail.ingredients) ? detail.ingredients : []
+      results.push({ ...detail, pantryMatchCount: count, totalIngredients: ingredientsArr.length })
     }
   }
 
