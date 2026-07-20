@@ -111,6 +111,7 @@ function RecipesContent() {
   const [ingredientText, setIngredientText] = useState('')
   const [matchMode, setMatchMode] = useState<'flexible' | 'exact'>('flexible')
   const [fallbackRecipes, setFallbackRecipes] = useState<Recipe[] | null>(null)
+  const [fallbackKey, setFallbackKey] = useState<string>('')
 
   useEffect(() => {
     const ingredients = searchParams.get('ingredients')
@@ -160,8 +161,21 @@ function RecipesContent() {
     if (tab !== 'suggested' || isLoading) return
     if (filtered.length > 0) {
       setFallbackRecipes(null)
+      setFallbackKey('')
       return
     }
+
+    const hasActiveFilters = diffFilter !== 'all' || costFilter !== 'all' || maxTime !== 'any'
+    if (hasActiveFilters) {
+      setFallbackRecipes(null)
+      setFallbackKey('')
+      return
+    }
+
+    const nextKey = `${tab}:${diffFilter}:${costFilter}:${maxTime}`
+    if (fallbackKey === nextKey) return
+
+    setFallbackKey(nextKey)
     ;(async () => {
       try {
         const res = await fetch('/api/recipes', { credentials: 'same-origin' })
@@ -174,7 +188,7 @@ function RecipesContent() {
       }
     })()
     return () => { cancelled = true }
-  }, [tab, isLoading, filtered])
+  }, [tab, isLoading, filtered, diffFilter, costFilter, maxTime, fallbackKey])
 
   function handleIngredientSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()

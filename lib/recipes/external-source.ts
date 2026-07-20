@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { normalizeFoodName } from '@/lib/recipes/enrich'
+import { normalizeFoodName, isStapleIngredient, estimateRecipeCostLevel } from '@/lib/recipes/enrich'
 import { isDbAvailable, reportDbFailure, markDbSuccess } from '@/lib/dbCircuit'
 
 // In-process cache to avoid unnecessary DB calls for recently-seen external
@@ -145,9 +145,7 @@ export function normalizeMealToRecipe(meal: MealDbMeal) {
   const steps = splitInstructionsIntoSteps(textField(meal.strInstructions)).map((instruction, idx) => ({ step: idx + 1, instruction }))
   const tags = textField(meal.strTags).split(',').filter(Boolean)
 
-  const estimatedTime = Math.max(15, Math.min(60, ingredients.length * 6))
-  const estimatedDifficulty = ingredients.length <= 5 ? 'easy' : ingredients.length <= 10 ? 'medium' : 'hard'
-  const estimatedCost = ingredients.length <= 4 ? 'low' : ingredients.length <= 8 ? 'medium' : 'high'
+    const estimatedCost = estimateRecipeCostLevel(ingredients)
 
   return {
     id: `external-${textField(meal.idMeal)}`,

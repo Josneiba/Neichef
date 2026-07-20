@@ -75,9 +75,15 @@ export async function GET() {
       recipes = null
     }
   } catch (err: any) {
-    console.warn('[recipes:list] database unavailable, falling back to external recipes', err)
     const msg = String(err?.message ?? err)
-    if (msg.includes('ECIRCUITBREAKER') || msg.includes('too many authentication')) reportDbFailure()
+    const isSchemaError = err?.code === 'P2021' || msg.includes('TableDoesNotExist') || msg.includes('does not exist')
+    if (isSchemaError) {
+      console.warn('[recipes:list] database schema unavailable, falling back to external recipes', { message: msg })
+      reportDbFailure()
+    } else {
+      console.warn('[recipes:list] database unavailable, falling back to external recipes', err)
+      if (msg.includes('ECIRCUITBREAKER') || msg.includes('too many authentication')) reportDbFailure()
+    }
     recipes = null
   }
 

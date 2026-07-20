@@ -172,12 +172,14 @@ export function useRecipes() {
   }, [])
 
   const savedRecipes = recipes.filter((recipe) => savedIds.has(recipe.id))
-  const suggestedRecipes = suggestions ?? [...recipes].sort((a, b) => {
-    if (b.usesExpiringItems !== a.usesExpiringItems) return b.usesExpiringItems ? 1 : -1
-    const aRatio = a.pantryMatchCount / Math.max(a.totalIngredients, 1)
-    const bRatio = b.pantryMatchCount / Math.max(b.totalIngredients, 1)
-    return bRatio - aRatio
-  })
+  const suggestedRecipes = suggestions && suggestions.length > 0
+    ? suggestions
+    : [...recipes].sort((a, b) => {
+      if (b.usesExpiringItems !== a.usesExpiringItems) return b.usesExpiringItems ? 1 : -1
+      const aRatio = a.pantryMatchCount / Math.max(a.totalIngredients, 1)
+      const bRatio = b.pantryMatchCount / Math.max(b.totalIngredients, 1)
+      return bRatio - aRatio
+    })
 
   const findRecipesByIngredients = useCallback((
     ingredients: string[],
