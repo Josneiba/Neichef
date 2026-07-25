@@ -44,13 +44,13 @@ model ShoppingListItem {
 }
 
 model Ingredient {
-  id             String            @id @default(uuid())
-  name           String            @unique
+  id             String              @id @default(uuid())
+  name           String              @unique
   category       String?
-  estimatedPrice Float?            // Average price per standard unit (e.g., per pound, per item)
-  unitType       String?           // e.g., "lbs", "oz", "count"
-  PantryItem     PantryItem[]
-  RecipeItem     RecipeIngredient[] @relation("IngredientToRecipe")
+  estimatedPrice Float?              // Average price per standard unit (e.g., per pound, per item)
+  unitType       String?             // e.g., "lbs", "oz", "count"
+  PantryItem     PantryItem[]        @relation("IngredientToPantry")
+  RecipeItem     RecipeIngredient[]  @relation("IngredientToRecipe")
   RegionalPrices IngredientPrice[]
 }
 
@@ -84,9 +84,12 @@ model PantryItem {
   addedDate       DateTime             @default(now())
   imageUrl        String?
   user            User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ingredientId    String?
+  ingredient      Ingredient?          @relation("IngredientToPantry", fields: [ingredientId], references: [id], onDelete: SetNull)
   budgetEntries   BudgetLedgerEntry[]
 
   @@index([userId])
+  @@index([ingredientId])
 }
 
 model Recipe {
@@ -118,15 +121,18 @@ model Recipe {
 }
 
 model RecipeIngredient {
-  id            String  @id @default(cuid())
+  id            String       @id @default(cuid())
   recipeId      String
   name          String
   amount        Float
   unit          String
   substitution  String?
-  recipe        Recipe  @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  ingredientId  String?
+  ingredient    Ingredient?  @relation("IngredientToRecipe", fields: [ingredientId], references: [id], onDelete: SetNull)
+  recipe        Recipe       @relation(fields: [recipeId], references: [id], onDelete: Cascade)
 
   @@index([recipeId])
+  @@index([ingredientId])
 }
 
 model RecipeStep {
