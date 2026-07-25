@@ -1,4 +1,5 @@
 import { env } from '@/lib/env'
+import { callGeminiWithFile } from '@/lib/ai/gemini'
 
 type NutritionRestrictionDraft = {
   type: 'allergy' | 'avoid' | 'limit' | 'prefer'
@@ -124,14 +125,28 @@ async function callOpenAIWithFile(file: File, source: 'upload_photo' | 'upload_f
   return extracted
 }
 
+async function callPreferredProvider(file: File, source: 'upload_photo' | 'upload_file') {
+  // Prefer Gemini for complex file types (PDF) when configured, else OpenAI.
+  if (file.type === 'application/pdf' && env.GOOGLE_API_KEY) {
+    const text = await callGeminiWithFile(file, source)
+    return text
+  }
+
+  if (env.OPENAI_API_KEY) {
+    return await callOpenAIWithFile(file, source)
+  }
+
+  throw new Error('No extraction provider configured')
+}
+
 export async function extractNutritionPlan(
   file: File,
   source: 'upload_photo' | 'upload_file',
 ): Promise<{ ok: true; draft: NutritionPlanDraft; rawText: string } | { ok: false; error: string; notConfigured?: boolean }> {
-  if (!env.OPENAI_API_KEY) {
+  if (!env.OPENAI_API_KEY && !env.GOOGLE_API_KEY) {
     return {
       ok: false,
-      error: 'Nutrition plan extraction is not configured. Add OPENAI_API_KEY to your environment to enable this feature.',
+      error: 'Nutrition plan extraction is not configured. Add OPENAI_API_KEY or GOOGLE_API_KEY to your environment to enable this feature.',
       notConfigured: true,
     }
   }
@@ -145,7 +160,7 @@ export async function extractNutritionPlan(
   }
 
   try {
-    const rawText = await callOpenAIWithFile(file, source)
+    const rawText = await callPreferredProvider(file, source)
     const draft = parsePlanDraft(rawText, source)
     if (!draft) {
       return { ok: false, error: 'Unable to extract a structured nutrition plan from the uploaded document.' }

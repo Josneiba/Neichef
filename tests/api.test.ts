@@ -26,6 +26,13 @@ vi.mock('@/lib/prisma', () => ({
       findMany: vi.fn(),
       updateMany: vi.fn(),
     },
+    shoppingListItem: {
+      create: vi.fn(),
+      findMany: vi.fn(),
+      findFirst: vi.fn(),
+      updateMany: vi.fn(),
+      deleteMany: vi.fn(),
+    },
     budgetLedgerEntry: {
       findMany: vi.fn(),
     },
@@ -100,6 +107,32 @@ describe('API route protection and pantry logic', () => {
       barcode: '1234567890123',
       estimatedPrice: 2.5,
     })
+  })
+
+  it('dedupes unchecked shopping list items by normalized name', async () => {
+    const createdItems = [
+      { id: 'list-1', userId: 'user-1', name: 'Eggs', normalizedName: 'eggs', quantity: 1, unit: null, checked: false, createdAt: new Date(), updatedAt: new Date() },
+      { id: 'list-2', userId: 'user-1', name: 'Bread', normalizedName: 'bread', quantity: 1, unit: null, checked: false, createdAt: new Date(), updatedAt: new Date() },
+    ]
+    vi.mocked(prisma.shoppingListItem.findFirst)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: 'list-0', userId: 'user-1', name: 'Eggs', normalizedName: 'eggs', quantity: 1, unit: null, checked: false, createdAt: new Date(), updatedAt: new Date() } as any)
+      .mockResolvedValueOnce(null)
+    vi.mocked(prisma.shoppingListItem.create)
+      .mockResolvedValueOnce(createdItems[0] as any)
+      .mockResolvedValueOnce(createdItems[1] as any)
+
+    const { POST } = await import('@/app/api/shopping-list/route')
+    const response = await POST(new Request('http://localhost', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify([{ name: 'Eggs' }, { name: 'eggs' }, { name: 'Bread' }]),
+    }))
+
+    expect(response.status).toBe(201)
+    const payload = await response.json()
+    expect(payload.items).toHaveLength(2)
+    expect(payload.items.map((item: { name: string }) => item.name)).toEqual(['Eggs', 'Bread'])
   })
 
   it('computes pantry urgency based on expiration date', () => {

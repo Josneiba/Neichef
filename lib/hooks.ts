@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import type { PantryItem, Recipe, Notification, BudgetStats, UserProfile, ItemUrgency, Category, StorageLocation } from './types'
+import type { PantryItem, Recipe, Notification, BudgetStats, ShoppingListItem, UserProfile, ItemUrgency, Category, StorageLocation } from './types'
 
 function computeUrgency(expirationDate: string): ItemUrgency {
   const today = new Date()
@@ -291,6 +291,95 @@ export function useBudget(): BudgetStats {
   }, [])
 
   return budgetStats
+}
+
+export function useShoppingList() {
+  const [items, setItems] = useState<ShoppingListItem[]>([])
+
+  useEffect(() => {
+    fetch('/api/shopping-list', { credentials: 'same-origin' })
+      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+      .then((data) => {
+        if (Array.isArray(data)) setItems(data)
+      })
+      .catch(() => setItems([]))
+  }, [])
+
+  const addItem = useCallback(async (item: { name: string; quantity?: number; unit?: string | null }) => {
+    const response = await fetch('/api/shopping-list', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify([{ name: item.name, quantity: item.quantity ?? 1, unit: item.unit ?? null }]),
+    })
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok) throw new Error(payload.error ?? 'Could not add item')
+    if (Array.isArray(payload.items)) {
+      setItems((prev) => {
+        const incoming = payload.items as ShoppingListItem[]
+        const next = [...incoming, ...prev]
+        const deduped = next.filter((entry, index, all) => all.findIndex((candidate) => candidate.id === entry.id) === index)
+        return deduped
+      })
+    }
+    return payload.items?.[0] as ShoppingListItem | undefined
+  }, [])
+
+  const addItems = useCallback(async (itemsToAdd: Array<{ name: string; quantity?: number; unit?: string | null }>) => {
+    const response = await fetch('/api/shopping-list', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify(itemsToAdd.map((item) => ({ name: item.name, quantity: item.quantity ?? 1, unit: item.unit ?? null }))),
+    })
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok) throw new Error(payload.error ?? 'Could not add items')
+    if (Array.isArray(payload.items)) {
+      setItems((prev) => {
+        const incoming = payload.items as ShoppingListItem[]
+        const next = [...incoming, ...prev]
+        return next.filter((entry, index, all) => all.findIndex((candidate) => candidate.id === entry.id) === index)
+      })
+    }
+    return payload.items as ShoppingListItem[]
+  }, [])
+
+  const toggleItem = useCallback(async (id: string) => {
+    const current = items.find((item) => item.id === id)
+    if (!current) return
+    const response = await fetch(`/api/shopping-list/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ checked: !current.checked }),
+    })
+    if (response.ok) {
+      setItems((prev) => prev.map((item) => (item.id === id ? { ...item, checked: !item.checked } : item)))
+    }
+  }, [items])
+
+  const removeItem = useCallback(async (id: string) => {
+    const response = await fetch(`/api/shopping-list/${id}`, { method: 'DELETE', credentials: 'same-origin' })
+    if (response.ok) {
+      setItems((prev) => prev.filter((item) => item.id !== id))
+    }
+  }, [])
+
+  const updateItem = useCallback(async (id: string, updates: Partial<ShoppingListItem>) => {
+    const response = await fetch(`/api/shopping-list/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify(updates),
+    })
+    if (response.ok) {
+      setItems((prev) => prev.map((item) => (item.id === id ? { ...item, ...updates } : item)))
+    }
+  }, [])
+
+  const checkedCount = items.filter((item) => item.checked).length
+
+  return { items, addItem, addItems, toggleItem, removeItem, updateItem, checkedCount }
 }
 
 export function useProfile() {

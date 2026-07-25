@@ -15,6 +15,7 @@ import {
   X,
   TrendingUp,
   Apple,
+  ListChecks,
 } from 'lucide-react'
 import { useState } from 'react'
 import type { Notification } from '@/lib/types'
@@ -25,6 +26,7 @@ function getNavItems(t: (key: any) => string) {
       { href: '/app', label: t('dashboard'), icon: LayoutDashboard },
       { href: '/app/pantry', label: t('pantry'), icon: Package },
       { href: '/app/recipes', label: t('recipes'), icon: BookOpen },
+      { href: '/app/shopping', label: t('shoppingList'), icon: ListChecks },
     ],
     more: [
       { href: '/app/budget', label: t('budget'), icon: TrendingUp },

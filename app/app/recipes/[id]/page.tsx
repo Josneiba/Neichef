@@ -2,9 +2,9 @@
 
 import { use, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useRecipe } from '@/lib/hooks'
+import { useRecipe, useShoppingList } from '@/lib/hooks'
 import { useT } from '@/lib/i18n'
-import { ArrowLeft, Bookmark, BookmarkCheck, ChefHat, Check, AlertCircle, Loader2 } from 'lucide-react'
+import { ArrowLeft, Bookmark, BookmarkCheck, ChefHat, Check, AlertCircle, Loader2, ListPlus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const recipeImages: Record<string, string> = {
@@ -20,8 +20,11 @@ const difficultyLabel: Record<string, string> = { easy: 'Easy', medium: 'Interme
 export default function RecipeDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const { recipe, isLoading, error, toggleSave } = useRecipe(id)
+  const { addItems } = useShoppingList()
   const t = useT()
   const [nutrition, setNutrition] = useState<{ calories: number; protein: number; carbs: number; fat: number; sugars: number; matchedIngredients: number; note: string } | null>(null)
+  const [isAddingMissing, setIsAddingMissing] = useState(false)
+  const [justAdded, setJustAdded] = useState(false)
 
   useEffect(() => {
     if (!recipe) return
@@ -66,6 +69,18 @@ export default function RecipeDetailPage({ params }: { params: Promise<{ id: str
   const missingIngredients = recipe.ingredients.filter((i) => !i.inPantry && !i.isStaple)
   const matchRatio = recipe.pantryMatchCount / Math.max(recipe.totalIngredients, 1)
   const methodText = recipe.steps.map((step) => step.instruction).filter(Boolean).join(' ')
+
+  async function handleAddMissingToList() {
+    if (!missingIngredients.length) return
+    setIsAddingMissing(true)
+    setJustAdded(false)
+    try {
+      await addItems(missingIngredients.map((ingredient) => ({ name: ingredient.name })))
+      setJustAdded(true)
+    } finally {
+      setIsAddingMissing(false)
+    }
+  }
 
   return (
     <div className="max-w-3xl mx-auto pb-24 lg:pb-8">
@@ -137,9 +152,20 @@ export default function RecipeDetailPage({ params }: { params: Promise<{ id: str
             <div className="h-full bg-primary rounded-full" style={{ width: `${matchRatio * 100}%` }} />
           </div>
           {missingIngredients.length > 0 && (
-            <p className="text-xs text-muted-foreground mt-2">
-              {t('missing')} {missingIngredients.map((i) => i.name).join(', ')}
-            </p>
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs text-muted-foreground">
+                {t('missing')} {missingIngredients.map((i) => i.name).join(', ')}
+              </p>
+              <button
+                type="button"
+                onClick={() => void handleAddMissingToList()}
+                disabled={isAddingMissing}
+                className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-xs font-medium text-foreground hover:bg-muted disabled:opacity-60"
+              >
+                <ListPlus className="h-3.5 w-3.5" strokeWidth={1.5} />
+                {justAdded ? t('addedToShoppingList') : t('addMissingToShoppingList')}
+              </button>
+            </div>
           )}
         </div>
 

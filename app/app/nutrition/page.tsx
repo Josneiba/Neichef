@@ -1,4 +1,4 @@
-'use client'
+ 'use client'
 
 import { useEffect, useRef, useState } from 'react'
 import type { NutritionPlan as PrismaNutritionPlan, NutritionRestriction } from '@prisma/client'
@@ -10,6 +10,40 @@ import { PlanForm } from '@/components/nutrition/plan-form'
 import { PlanSummaryCard } from '@/components/nutrition/plan-summary-card'
 import { RoutineForm } from '@/components/nutrition/routine-form'
 import { Loader2, ArrowRight } from 'lucide-react'
+
+// Responsive recommendation count: phone/tablet/desktop
+function useRecommendationCount() {
+  const [count, setCount] = useState<number>(() => {
+    if (typeof window === 'undefined') return 6
+    return window.matchMedia('(max-width: 640px)').matches ? 10 : window.matchMedia('(min-width: 641px) and (max-width: 1024px)').matches ? 4 : 6
+  })
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const mqPhone = window.matchMedia('(max-width: 640px)')
+    const mqTablet = window.matchMedia('(min-width: 641px) and (max-width: 1024px)')
+    const mqDesktop = window.matchMedia('(min-width: 1025px)')
+
+    function update() {
+      if (mqPhone.matches) setCount(10)
+      else if (mqTablet.matches) setCount(4)
+      else if (mqDesktop.matches) setCount(6)
+    }
+
+    update()
+    mqPhone.addEventListener('change', update)
+    mqTablet.addEventListener('change', update)
+    mqDesktop.addEventListener('change', update)
+
+    return () => {
+      mqPhone.removeEventListener('change', update)
+      mqTablet.removeEventListener('change', update)
+      mqDesktop.removeEventListener('change', update)
+    }
+  }, [])
+
+  return count
+}
 
 type NutritionPlanDraft = {
   id: string
@@ -48,6 +82,7 @@ export default function NutritionPage() {
   const t = useT()
   const [activeTab, setActiveTab] = useState<'overview' | 'plan' | 'routines' | 'recommendations'>('overview')
   const { suggestedRecipes, isLoadingSuggestions, suggestionError } = useRecipes()
+  const recommendationCount = useRecommendationCount()
   const [plan, setPlan] = useState<NutritionPlanWithRestrictions | null>(null)
   const [routines, setRoutines] = useState<MealRoutine[]>([])
   const [loading, setLoading] = useState(true)
@@ -112,6 +147,8 @@ export default function NutritionPage() {
     formData.append('file', file)
     formData.append('source', source)
 
+
+ 
     try {
       const response = await fetch('/api/nutrition/extract', {
         method: 'POST',
@@ -149,7 +186,7 @@ export default function NutritionPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="px-6 py-8 max-w-5xl mx-auto pb-24 lg:pb-8 space-y-6">
       <div>
         <h1 className="font-serif text-3xl text-foreground">{t('myNutrition')}</h1>
         <p className="text-sm text-muted-foreground mt-1">{t('nutritionOverviewDescription')}</p>
@@ -337,7 +374,7 @@ export default function NutritionPage() {
                   </div>
                 ) : suggestedRecipes && suggestedRecipes.length > 0 ? (
                   <div className="grid gap-4 md:grid-cols-2">
-                    {suggestedRecipes.slice(0, 6).map((recipe) => (
+                    {suggestedRecipes.slice(0, recommendationCount).map((recipe) => (
                       <Link key={recipe.id} href={`/app/recipes/${recipe.id}`} className="rounded-xl border border-border bg-card p-5 transition hover:border-primary/70">
                         <div className="flex items-start justify-between gap-4">
                           <div>

@@ -9,6 +9,66 @@ export type DetectIngredientsResult =
   | { ok: true; items: DetectedIngredient[] }
   | { ok: false; error: string }
 
+async function callGeminiVision(buffer: Buffer, contentType: string) {
+  if (!process.env.GOOGLE_API_KEY && !process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
+    return null
+  }
+
+  const model = process.env.GOOGLE_GEMINI_MODEL ?? 'gemini-2.5-flash'
+  const prompt = `Extract ingredient names from the following image. Return a JSON array of objects with { name, confidence } only.`
+  const base64 = buffer.toString('base64')
+
+  const body = {
+    prompt: `${prompt}\n\nMIME-Type: ${contentType}\nImageBase64: ${base64}`,
+    temperature: 0,
+    maxOutputTokens: 512,
+  }
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+
+  if (process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
+    headers.Authorization = await getGoogleAuthToken() ?? ''
+  } else if (process.env.GOOGLE_API_KEY) {
+    headers.Authorization = `Bearer ${process.env.GOOGLE_API_KEY}`
+  }
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body),
+  })
+
+  if (!res.ok) return null
+
+  const json = await res.json()
+  const text = typeof json.output === 'string'
+    ? json.output
+    : Array.isArray(json.output)
+    ? json.output.map((o: any) => o?.content ?? '').join(' ')
+    : typeof json.text === 'string'
+    ? json.text
+    : null
+
+  return text
+}
+
+async function getGoogleAuthToken() {
+  const { GoogleAuth } = await import('google-auth-library')
+  if (!process.env.GOOGLE_SERVICE_ACCOUNT_KEY) return null
+
+  const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY)
+  const auth = new GoogleAuth({
+    credentials,
+    scopes: ['https://www.googleapis.com/auth/cloud-platform'],
+  })
+  const client = await auth.getClient()
+  const token = await client.getAccessToken()
+  return typeof token === 'string' ? `Bearer ${token}` : token?.token ? `Bearer ${token.token}` : null
+}
+
 function dataUrlToBuffer(input: string): { buffer: Buffer; contentType: string } {
   const match = /^data:(.+?);base64,(.+)$/.exec(input)
   if (match) {
@@ -33,14 +93,19 @@ async function callHuggingFace(buffer: Buffer, contentType: string, headers: Rec
 }
 
 export async function detectIngredients(image: string): Promise<DetectIngredientsResult> {
-  if (!process.env.HF_API_KEY) {
+  const hasHf = Boolean(process.env.HF_API_KEY)
+  const hasGemini = Boolean(process.env.GOOGLE_API_KEY || process.env.GOOGLE_SERVICE_ACCOUNT_KEY)
+
+  if (!hasHf && !hasGemini) {
     return {
       ok: false,
-      error: 'Photo detection is not configured yet. Add HF_API_KEY to your environment to enable it.',
+      error: 'Photo detection is not configured yet. Add HF_API_KEY or GOOGLE_API_KEY / GOOGLE_SERVICE_ACCOUNT_KEY to your environment to enable it.',
     }
   }
 
-  const headers: Record<string, string> = { Authorization: `Bearer ${process.env.HF_API_KEY}` }
+  const headers: Record<string, string> = hasHf
+    ? { Authorization: `Bearer ${process.env.HF_API_KEY}` }
+    : {}
 
   try {
     // `image` may be a remote URL (fetch bytes first) or a base64/data URL.
@@ -57,10 +122,42 @@ export async function detectIngredients(image: string): Promise<DetectIngredient
       contentType = parsed.contentType
     }
 
+    let items: DetectedIngredient[] = []
+    let hfError: string | null = null
+
+    if (hasHf) {
+      const hfResult = await runHuggingFaceDetection(buffer, contentType, headers)
+      if (hfResult.ok) items = hfResult.items
+      else hfError = hfResult.error
+    }
+
+    const lowConfidence = items.length > 0 && items.every((item) => item.confidence < 0.65)
+    if ((items.length === 0 || lowConfidence) && hasGemini) {
+      const geminiResult = await runGeminiDetection(buffer, contentType)
+      if (geminiResult.ok) {
+        items = geminiResult.items
+      } else if (!hasHf) {
+        return { ok: false, error: geminiResult.error }
+      }
+    }
+
+    if (items.length === 0) {
+      return {
+        ok: false,
+        error: hfError ?? 'Unable to detect ingredients from the photo.',
+      }
+    }
+
+    return { ok: true, items }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Ingredient detection failed unexpectedly.' }
+  }
+}
+
+async function runHuggingFaceDetection(buffer: Buffer, contentType: string, headers: Record<string, string>) {
+  try {
     let res = await callHuggingFace(buffer, contentType, headers)
 
-    // Hosted models "cold start" — HF returns 503 with an estimated_time
-    // while it loads. Retry once after a short wait instead of giving up.
     if (res.status === 503) {
       await new Promise((resolve) => setTimeout(resolve, 2500))
       res = await callHuggingFace(buffer, contentType, headers)
@@ -71,7 +168,7 @@ export async function detectIngredients(image: string): Promise<DetectIngredient
       return { ok: false, error: `Ingredient detection service error (${res.status}): ${text.slice(0, 200)}` }
     }
 
-    const data = await res.json()
+    const data = await res.json().catch(() => null)
     if (!Array.isArray(data)) {
       return { ok: false, error: 'Unexpected response from the ingredient detection service.' }
     }
@@ -95,7 +192,33 @@ export async function detectIngredients(image: string): Promise<DetectIngredient
 
     return { ok: true, items }
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : 'Ingredient detection failed unexpectedly.' }
+    return { ok: false, error: err instanceof Error ? err.message : 'Hugging Face detection failed unexpectedly.' }
+  }
+}
+
+async function runGeminiDetection(buffer: Buffer, contentType: string) {
+  const text = await callGeminiVision(buffer, contentType)
+  if (!text) {
+    return { ok: false, error: 'Gemini ingredient detection failed or returned no text.' }
+  }
+
+  try {
+    const parsed = JSON.parse(text)
+    if (!Array.isArray(parsed)) {
+      return { ok: false, error: 'Gemini ingredient detection returned an unexpected format.' }
+    }
+
+    const items = parsed
+      .slice(0, 20)
+      .map((item: any) => ({
+        name: String(item.name ?? item.label ?? '').toLowerCase(),
+        confidence: Number(item.confidence ?? item.score ?? 0),
+      }))
+      .filter((item) => item.name.length > 0)
+
+    return { ok: true, items }
+  } catch {
+    return { ok: false, error: 'Unable to parse Gemini ingredient detection output.' }
   }
 }
 

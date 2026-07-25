@@ -12,6 +12,9 @@ const envSchema = z.object({
   UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_API_MODEL: z.string().optional(),
+  GOOGLE_API_KEY: z.string().optional(),
+  GOOGLE_GEMINI_MODEL: z.string().optional(),
+  GOOGLE_SERVICE_ACCOUNT_KEY: z.string().optional(),
   SUPABASE_NUTRITION_BUCKET: z.string().optional(),
 })
 

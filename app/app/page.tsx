@@ -8,6 +8,7 @@ import { RecipeFinderModal } from '@/components/recipes/recipe-finder-modal'
 import { ArrowRight, Package, Bell, BookOpen, TrendingUp, AlertTriangle, Camera, ListPlus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTranslation } from '@/lib/i18n'
+import { PantryHealthScoreCard } from '@/components/pantry/pantry-health-score'
 
 export default function DashboardPage() {
   const { t, locale } = useTranslation()
@@ -94,6 +95,10 @@ export default function DashboardPage() {
             </button>
           </div>
         </div>
+      </div>
+
+      <div className="mb-6">
+        <PantryHealthScoreCard items={items} />
       </div>
 
       {/* Alert bar — expiring/expired */}

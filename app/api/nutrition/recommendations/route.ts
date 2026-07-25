@@ -47,7 +47,7 @@ export async function GET() {
       })
 
     markDbSuccess()
-    return apiSuccess(recommendations.slice(0, 12))
+    return apiSuccess(recommendations.slice(0, 10))
   } catch (err: any) {
     const msg = String(err?.message ?? err)
     if (msg.includes('ECIRCUITBREAKER') || msg.includes('too many authentication')) reportDbFailure()

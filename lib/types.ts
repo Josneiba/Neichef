@@ -90,6 +90,17 @@ export interface BudgetStats {
   monthlyTotals: { month: string; saved: number; wasted: number }[]
 }
 
+export interface ShoppingListItem {
+  id: string
+  name: string
+  normalizedName: string
+  quantity: number
+  unit?: string | null
+  checked: boolean
+  createdAt: string
+  updatedAt: string
+}
+
 export interface UserProfile {
   id: string
   name: string
