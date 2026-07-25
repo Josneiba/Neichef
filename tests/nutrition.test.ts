@@ -10,6 +10,12 @@ vi.mock('@/lib/prisma', () => ({
       findMany: vi.fn(),
       create: vi.fn(),
     },
+    pantryItem: {
+      findMany: vi.fn(),
+    },
+    recipe: {
+      findMany: vi.fn(),
+    },
   },
 }))
 
@@ -153,5 +159,48 @@ describe('nutrition API routes and helpers', () => {
 
     expect(result).toEqual({ id: 'routine-2', name: 'Lunch', slots: [] })
     expect(prisma.mealRoutine.create).toHaveBeenCalledOnce()
+  })
+
+  it('returns nutrition recommendations using pantry and plan data', async () => {
+    const { prisma } = await import('@/lib/prisma')
+
+    vi.mocked(prisma.nutritionPlan.findFirst).mockResolvedValueOnce({
+      id: 'plan-1',
+      title: 'Weekly plan',
+      restrictions: [],
+    } as any)
+    vi.mocked(prisma.pantryItem.findMany).mockResolvedValueOnce([
+      { name: 'Chicken', expirationDate: new Date() },
+      { name: 'Tomato', expirationDate: new Date() },
+    ] as any)
+    vi.mocked(prisma.recipe.findMany).mockResolvedValueOnce([
+      {
+        id: 'recipe-1',
+        userId: null,
+        title: 'Chicken Salad',
+        description: 'Fresh chicken salad',
+        prepTimeMinutes: 10,
+        cookTimeMinutes: 0,
+        servings: 2,
+        difficulty: 'easy',
+        tags: ['salad'],
+        costLevel: 'low',
+        isPublic: true,
+        ingredients: [
+          { name: 'Chicken', amount: 200, unit: 'g' },
+          { name: 'Lettuce', amount: 100, unit: 'g' },
+          { name: 'Tomato', amount: 1, unit: 'piece' },
+        ],
+        steps: [],
+      },
+    ] as any)
+
+    const { GET } = await import('@/app/api/nutrition/recommendations/route')
+    const response = await GET()
+    const body = await response.json()
+
+    expect(Array.isArray(body)).toBe(true)
+    expect(body.length).toBe(1)
+    expect(body[0]).toMatchObject({ id: 'recipe-1', pantryMatchCount: 2, totalIngredients: 3 })
   })
 })

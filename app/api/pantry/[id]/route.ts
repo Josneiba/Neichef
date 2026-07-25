@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { isDbAvailable, reportDbFailure } from '@/lib/dbCircuit'
@@ -9,8 +10,12 @@ const patchSchema = z.object({
   category: z.string().min(1).optional(),
   quantity: z.number().positive().optional(),
   unit: z.string().min(1).optional(),
+  purchaseDate: z.string().optional(),
+  openedDate: z.string().optional(),
   expirationDate: z.string().optional(),
   location: z.string().min(1).optional(),
+  barcode: z.string().optional(),
+  estimatedPrice: z.number().nonnegative().optional(),
   imageUrl: z.string().url().optional(),
 })
 
@@ -36,8 +41,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       where: { id, userId },
       data: {
         ...parsed.data,
+        purchaseDate: parsed.data.purchaseDate ? new Date(parsed.data.purchaseDate) : undefined,
+        openedDate: parsed.data.openedDate ? new Date(parsed.data.openedDate) : undefined,
         expirationDate: parsed.data.expirationDate ? new Date(parsed.data.expirationDate) : undefined,
-      },
+      } as Prisma.PantryItemUncheckedUpdateManyInput,
     })
 
     if (item.count === 0) {

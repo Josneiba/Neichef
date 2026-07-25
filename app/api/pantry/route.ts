@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { isDbAvailable, reportDbFailure, markDbSuccess } from '@/lib/dbCircuit'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
@@ -10,8 +11,12 @@ const pantryItemSchema = z.object({
   category: z.string().min(1),
   quantity: z.number().positive(),
   unit: z.string().min(1),
-  expirationDate: z.string(),
+  purchaseDate: z.string().optional(),
+  openedDate: z.string().optional(),
+  expirationDate: z.string().min(1),
   location: z.string().min(1),
+  barcode: z.string().optional(),
+  estimatedPrice: z.number().nonnegative().optional(),
   imageUrl: z.string().url().optional(),
 })
 
@@ -54,10 +59,14 @@ export async function POST(request: Request) {
         category: parsed.data.category,
         quantity: parsed.data.quantity,
         unit: parsed.data.unit,
+        purchaseDate: parsed.data.purchaseDate ? new Date(parsed.data.purchaseDate) : undefined,
+        openedDate: parsed.data.openedDate ? new Date(parsed.data.openedDate) : undefined,
         expirationDate: new Date(parsed.data.expirationDate),
         location: parsed.data.location,
+        barcode: parsed.data.barcode,
+        estimatedPrice: parsed.data.estimatedPrice,
         imageUrl: parsed.data.imageUrl,
-      },
+      } as Prisma.PantryItemUncheckedCreateInput,
     })
 
     markDbSuccess()

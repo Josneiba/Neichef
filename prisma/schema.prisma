@@ -31,8 +31,12 @@ model PantryItem {
   category        String
   quantity        Float
   unit            String
+  purchaseDate    DateTime?
+  openedDate      DateTime?
   expirationDate  DateTime
   location        String
+  barcode         String?
+  estimatedPrice  Float?
   addedDate       DateTime             @default(now())
   imageUrl        String?
   user            User                 @relation(fields: [userId], references: [id], onDelete: Cascade)

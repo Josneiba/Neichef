@@ -39,6 +39,8 @@ export function PantryFilters({
     { value: 'fridge', label: t('fridge') },
     { value: 'freezer', label: t('freezer') },
     { value: 'pantry', label: t('pantryLocation') },
+    { value: 'spice_rack', label: t('spiceRack') },
+    { value: 'cellar', label: t('cellar') },
   ]
   return (
     <div className="flex flex-wrap items-center gap-2">

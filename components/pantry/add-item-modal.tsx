@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import FocusTrap from 'focus-trap-react'
 import { usePantry } from '@/lib/hooks'
 import { useT } from '@/lib/i18n'
 import { X, Camera, ScanBarcode, FileText, Pencil, Check, Loader2, AlertCircle, Plus, Trash2 } from 'lucide-react'
@@ -291,8 +292,19 @@ export function AddItemModal({ onClose, initialMode = 'manual' }: AddItemModalPr
   }, [])
 
   useEffect(() => {
-    return () => stopScanning()
-  }, [stopScanning])
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        stopScanning()
+        onClose()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      stopScanning()
+    }
+  }, [stopScanning, onClose])
 
   async function lookupBarcode(code: string) {
     if (!code.trim()) return
@@ -409,11 +421,18 @@ export function AddItemModal({ onClose, initialMode = 'manual' }: AddItemModalPr
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-foreground/20 backdrop-blur-sm px-4 pb-4 sm:pb-0">
-      <div className="bg-card border border-border rounded-2xl w-full max-w-lg shadow-xl max-h-[90vh] overflow-y-auto">
+      <FocusTrap focusTrapOptions={{ initialFocus: '#add-item-title', clickOutsideDeactivates: true }}>
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="add-item-title"
+          tabIndex={-1}
+          className="bg-card border border-border rounded-2xl w-full max-w-lg shadow-xl max-h-[90vh] overflow-y-auto"
+        >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-border">
-          <h2 className="font-serif text-lg text-foreground">Add item</h2>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors" aria-label="Close">
+          <h2 id="add-item-title" className="font-serif text-lg text-foreground">Add item</h2>
+          <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors" aria-label="Close">
             <X className="w-5 h-5" strokeWidth={1.5} />
           </button>
         </div>
@@ -423,7 +442,9 @@ export function AddItemModal({ onClose, initialMode = 'manual' }: AddItemModalPr
           {modes.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
+              type="button"
               onClick={() => { stopScanning(); setMode(id) }}
+              aria-pressed={mode === id}
               className={cn(
                 'flex items-center gap-1.5 px-4 py-3 text-xs font-medium whitespace-nowrap border-b-2 transition-colors flex-1 justify-center',
                 mode === id
@@ -481,7 +502,9 @@ export function AddItemModal({ onClose, initialMode = 'manual' }: AddItemModalPr
                 <div>
                   <label className="block text-xs font-medium text-foreground mb-1.5">Location</label>
                   <select value={location} onChange={(e) => setLocation(e.target.value as StorageLocation)} className="w-full px-3 py-2.5 text-sm border border-border rounded-md bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring capitalize">
-                    {(['fridge','freezer','pantry'] as StorageLocation[]).map((l) => <option key={l} value={l} className="capitalize">{l}</option>)}
+                    {(['fridge', 'freezer', 'pantry', 'spice_rack', 'cellar'] as StorageLocation[]).map((l) => (
+                      <option key={l} value={l} className="capitalize">{l.replace('_', ' ')}</option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -551,10 +574,10 @@ export function AddItemModal({ onClose, initialMode = 'manual' }: AddItemModalPr
                   </div>
                   <p className="text-xs text-muted-foreground mb-4">Expiration dates will be set to 7 days from today by default. Update them in your pantry after adding.</p>
                   <div className="flex gap-3">
-                    <button onClick={resetPhoto} className="flex-1 border border-border text-foreground py-2.5 rounded-md text-sm font-medium hover:bg-muted transition-colors">
+                    <button type="button" onClick={resetPhoto} className="flex-1 border border-border text-foreground py-2.5 rounded-md text-sm font-medium hover:bg-muted transition-colors">
                       Retake
                     </button>
-                    <button onClick={handlePhotoConfirm} disabled={photoItems.filter((i) => i.confirmed).length === 0} className="flex-1 bg-primary text-primary-foreground py-2.5 rounded-md text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50">
+                    <button type="button" onClick={handlePhotoConfirm} disabled={photoItems.filter((i) => i.confirmed).length === 0} className="flex-1 bg-primary text-primary-foreground py-2.5 rounded-md text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50">
                       Add {photoItems.filter((i) => i.confirmed).length} items
                     </button>
                   </div>
@@ -691,10 +714,10 @@ export function AddItemModal({ onClose, initialMode = 'manual' }: AddItemModalPr
                     <ReviewList items={receiptItems} onChange={setReceiptItems} />
                   </div>
                   <div className="flex gap-3">
-                    <button onClick={resetReceipt} className="flex-1 border border-border text-foreground py-2.5 rounded-md text-sm font-medium hover:bg-muted transition-colors">
+                    <button type="button" onClick={resetReceipt} className="flex-1 border border-border text-foreground py-2.5 rounded-md text-sm font-medium hover:bg-muted transition-colors">
                       Retry
                     </button>
-                    <button onClick={handleReceiptConfirm} disabled={receiptItems.filter((i) => i.confirmed).length === 0} className="flex-1 bg-primary text-primary-foreground py-2.5 rounded-md text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50">
+                    <button type="button" onClick={handleReceiptConfirm} disabled={receiptItems.filter((i) => i.confirmed).length === 0} className="flex-1 bg-primary text-primary-foreground py-2.5 rounded-md text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50">
                       Add {receiptItems.filter((i) => i.confirmed).length} items
                     </button>
                   </div>
@@ -703,7 +726,8 @@ export function AddItemModal({ onClose, initialMode = 'manual' }: AddItemModalPr
             </div>
           )}
         </div>
-      </div>
+        </div>
+      </FocusTrap>
     </div>
   )
 }

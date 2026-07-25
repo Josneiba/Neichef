@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { prisma } from '@/lib/prisma'
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
@@ -43,6 +44,62 @@ describe('API route protection and pantry logic', () => {
     const { GET } = await import('@/app/api/pantry/route')
     const response = await GET()
     expect(response.status).toBe(401)
+  })
+
+  it('creates pantry items with inventory metadata', async () => {
+    const mockItem = {
+      id: 'pantry-1',
+      userId: 'user-1',
+      name: 'Green onion',
+      category: 'produce',
+      quantity: 2,
+      unit: 'bunch',
+      purchaseDate: new Date('2026-01-01'),
+      openedDate: new Date('2026-01-02'),
+      expirationDate: new Date('2026-01-10'),
+      location: 'spice_rack',
+      barcode: '1234567890123',
+      estimatedPrice: 2.5,
+      addedDate: new Date(),
+    }
+    vi.mocked(prisma.pantryItem.create).mockResolvedValueOnce(mockItem as any)
+
+    const { POST } = await import('@/app/api/pantry/route')
+    const request = new Request('http://localhost', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Green onion',
+        category: 'produce',
+        quantity: 2,
+        unit: 'bunch',
+        purchaseDate: '2026-01-01',
+        openedDate: '2026-01-02',
+        expirationDate: '2026-01-10',
+        location: 'spice_rack',
+        barcode: '1234567890123',
+        estimatedPrice: 2.5,
+      }),
+    })
+
+    const response = await POST(request)
+    expect(response.status).toBe(201)
+    const payload = await response.json()
+    expect(payload).toMatchObject({
+      id: 'pantry-1',
+      name: 'Green onion',
+      category: 'produce',
+      location: 'spice_rack',
+      barcode: '1234567890123',
+      estimatedPrice: 2.5,
+    })
+    expect(vi.mocked(prisma.pantryItem.create).mock.calls[0][0].data).toMatchObject({
+      name: 'Green onion',
+      category: 'produce',
+      location: 'spice_rack',
+      barcode: '1234567890123',
+      estimatedPrice: 2.5,
+    })
   })
 
   it('computes pantry urgency based on expiration date', () => {

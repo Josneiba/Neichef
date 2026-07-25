@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { usePantry } from '@/lib/hooks'
 import { useT } from '@/lib/i18n'
 import { UrgencyBadge } from '@/components/ui/urgency-badge'
@@ -9,6 +9,9 @@ import { AddItemModal } from '@/components/pantry/add-item-modal'
 import { PantryFilters } from '@/components/pantry/pantry-filters'
 import { cn } from '@/lib/utils'
 import { Package, Plus, Grid2X2, List } from 'lucide-react'
+import { inventorySummary } from '@/lib/pantry/calculate-stock'
+import { detectDuplicatePantryItems } from '@/lib/pantry/detect-duplicates'
+import { STORAGE_LOCATIONS } from '@/lib/pantry/storage'
 import type { Category, ItemUrgency, StorageLocation } from '@/lib/types'
 
 type ViewMode = 'list' | 'grid'
@@ -18,6 +21,12 @@ export default function PantryPage() {
   const t = useT()
   const [viewMode, setViewMode] = useState<ViewMode>('list')
   const [showAdd, setShowAdd] = useState(false)
+  const inventoryStats = useMemo(() => inventorySummary(items), [items])
+  const duplicateGroups = useMemo(() => detectDuplicatePantryItems(items), [items])
+  const storageLabels = useMemo(
+    () => Object.fromEntries(STORAGE_LOCATIONS.map((location) => [location.value, location.label])) as Record<StorageLocation, string>,
+    [],
+  )
   const [addMode, setAddMode] = useState<'manual' | 'photo' | 'barcode' | 'receipt'>('manual')
   const [filterUrgency, setFilterUrgency] = useState<ItemUrgency | 'all'>('all')
   const [filterCategory, setFilterCategory] = useState<Category | 'all'>('all')
@@ -32,8 +41,8 @@ export default function PantryPage() {
     return true
   })
 
-  const expiredCount = items.filter((i) => i.urgency === 'expired').length
-  const expiringCount = items.filter((i) => i.urgency === 'expiring').length
+  const expiredCount = useMemo(() => items.filter((i) => i.urgency === 'expired').length, [items])
+  const expiringCount = useMemo(() => items.filter((i) => i.urgency === 'expiring').length, [items])
 
   return (
     <div className="px-6 py-8 max-w-5xl mx-auto pb-24 lg:pb-8">
@@ -53,8 +62,42 @@ export default function PantryPage() {
         </button>
       </div>
 
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        <div className="rounded-xl border border-border bg-card p-4">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">{t('totalItems')}</p>
+          <p className="mt-2 text-3xl font-semibold text-foreground">{inventoryStats.totalItems}</p>
+        </div>
+        <div className="rounded-xl border border-border bg-card p-4">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">{t('estimatedValue')}</p>
+          <p className="mt-2 text-3xl font-semibold text-foreground">${inventoryStats.estimatedValue.toFixed(2)}</p>
+        </div>
+        <div className="rounded-xl border border-border bg-card p-4">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">{t('lowStock')}</p>
+          <p className="mt-2 text-3xl font-semibold text-foreground">{inventoryStats.lowStockCount}</p>
+        </div>
+        <div className="rounded-xl border border-border bg-card p-4">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">{t('duplicateGroups')}</p>
+          <p className="mt-2 text-3xl font-semibold text-foreground">{duplicateGroups.length}</p>
+        </div>
+      </div>
+
+      {duplicateGroups.length > 0 && (
+        <div className="mb-6 rounded-2xl border border-amber-300/30 bg-[oklch(0.98_0.10_95)] p-4">
+          <p className="text-sm font-semibold text-foreground">{t('duplicatePantryItems')}</p>
+          <p className="text-xs text-muted-foreground mt-1">{t('duplicatePantryItemsDescription')}</p>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            {duplicateGroups.slice(0, 3).map((group) => (
+              <div key={group.normalizedName} className="rounded-xl border border-border bg-card p-3">
+                <p className="text-sm font-medium text-foreground">{group.normalizedName}</p>
+                <p className="text-xs text-muted-foreground mt-1">{group.items.length} {t('similarItems')}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Urgency summary */}
-      <div className="grid grid-cols-3 gap-3 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
         {[
           { label: t('fresh'), count: items.filter((i) => i.urgency === 'fresh').length, urgency: 'fresh' as ItemUrgency, color: 'bg-[oklch(0.92_0.04_145)] border-[oklch(0.82_0.06_145)]', textColor: 'text-[oklch(0.28_0.08_145)]', subColor: 'text-[oklch(0.38_0.07_145)]' },
           { label: t('expiring'), count: expiringCount, urgency: 'expiring' as ItemUrgency, color: 'bg-[oklch(0.94_0.07_75)] border-[oklch(0.84_0.09_70)]', textColor: 'text-[oklch(0.42_0.10_55)]', subColor: 'text-[oklch(0.48_0.08_60)]' },
@@ -93,7 +136,7 @@ export default function PantryPage() {
       </div>
 
       {/* Filters + view toggle */}
-      <div className="flex items-center gap-3 mb-6">
+      <div className="flex flex-col gap-3 mb-6 sm:flex-row sm:items-center">
         <div className="flex-1">
           <PantryFilters
             search={search}
@@ -163,7 +206,7 @@ export default function PantryPage() {
                     <p className="text-xs text-muted-foreground mt-0.5 capitalize">{item.category}</p>
                   </div>
                   <p className="text-sm text-muted-foreground w-20 hidden md:block">{item.quantity} {item.unit}</p>
-                  <p className="text-sm text-muted-foreground w-20 capitalize hidden md:block">{item.location}</p>
+                  <p className="text-sm text-muted-foreground w-20 hidden md:block">{storageLabels[item.location] ?? item.location}</p>
                   <p className="text-sm text-muted-foreground w-28 hidden md:block">{expLabel}</p>
                   <div className="flex items-center gap-2 md:w-24">
                     <UrgencyBadge urgency={item.urgency} daysUntilExpiry={diff > 0 ? diff : undefined} />
@@ -207,7 +250,7 @@ export default function PantryPage() {
                 </div>
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs text-muted-foreground">{item.quantity} {item.unit} · <span className="capitalize">{item.location}</span></p>
+                    <p className="text-xs text-muted-foreground">{item.quantity} {item.unit} · <span>{storageLabels[item.location] ?? item.location}</span></p>
                   </div>
                   <p className="text-xs text-muted-foreground">{expLabel}</p>
                   <div className="pt-1">

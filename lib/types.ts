@@ -1,5 +1,5 @@
 export type ItemUrgency = 'fresh' | 'expiring' | 'expired'
-export type StorageLocation = 'fridge' | 'freezer' | 'pantry'
+export type StorageLocation = 'fridge' | 'freezer' | 'pantry' | 'spice_rack' | 'cellar'
 export type Category =
   | 'produce'
   | 'dairy'
@@ -19,8 +19,12 @@ export interface PantryItem {
   category: Category
   quantity: number
   unit: string
+  purchaseDate?: string
+  openedDate?: string
   expirationDate: string // ISO date string
   location: StorageLocation
+  barcode?: string
+  estimatedPrice?: number
   urgency: ItemUrgency
   addedDate: string
   imageUrl?: string
