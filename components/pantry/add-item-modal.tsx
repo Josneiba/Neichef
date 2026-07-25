@@ -22,6 +22,9 @@ type ReviewItem = {
   unit: string
   category: Category
   confirmed: boolean
+  price?: number
+  currency?: string
+  countryCode?: string
 }
 
 const categoryOptions: Category[] = ['produce', 'dairy', 'meat', 'seafood', 'grains', 'condiments', 'canned', 'frozen', 'snacks', 'beverages', 'other']
@@ -356,6 +359,7 @@ export function AddItemModal({ onClose, initialMode = 'manual' }: AddItemModalPr
   const [receiptError, setReceiptError] = useState('')
   const [receiptNote, setReceiptNote] = useState('')
   const [receiptItems, setReceiptItems] = useState<ReviewItem[]>([])
+  const [showPriceReview, setShowPriceReview] = useState(false)
 
   async function handleReceiptSelected(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -374,16 +378,20 @@ export function AddItemModal({ onClose, initialMode = 'manual' }: AddItemModalPr
       if (!res.ok) {
         setReceiptError(payload.error ?? 'Could not read this receipt.')
       } else {
-        const items = (payload.items ?? []) as { name: string; quantity: number; unit: string; category: string }[]
-        setReceiptItems(
-          items.map((i) => newReviewItem({
+        const items = (payload.items ?? []) as { name: string; quantity: number; unit: string; category: string; unitPrice?: number; totalPrice?: number }[]
+        const mapped = items.map((i) => newReviewItem({
             name: i.name,
             quantity: i.quantity ?? 1,
             unit: i.unit ?? 'pcs',
             category: (categoryOptions as string[]).includes(i.category) ? (i.category as Category) : guessCategory(i.name),
             confirmed: true,
-          })),
-        )
+            price: i.unitPrice ?? i.totalPrice ?? undefined,
+            currency: payload.currency ?? undefined,
+          }))
+        setReceiptItems(mapped)
+        // Auto-open price review if any item includes price data
+        setShowPriceReview(mapped.some((mi) => mi.price != null))
+        
         setReceiptNote(payload.note ?? '')
         setReceiptStep('review')
       }
@@ -396,11 +404,27 @@ export function AddItemModal({ onClose, initialMode = 'manual' }: AddItemModalPr
 
   function handleReceiptConfirm() {
     const expirationDate = defaultExpiryDate(7)
-    receiptItems
-      .filter((i) => i.confirmed && i.name.trim())
-      .forEach((item) => {
-        addItem({ name: item.name.trim(), quantity: item.quantity, unit: item.unit, category: item.category, location: 'pantry', expirationDate })
-      })
+    const itemsToAdd = receiptItems.filter((i) => i.confirmed && i.name.trim())
+    itemsToAdd.forEach((item) => {
+      addItem({ name: item.name.trim(), quantity: item.quantity, unit: item.unit, category: item.category, location: 'pantry', expirationDate })
+    })
+
+    // Send price data to ingestion pipeline if available (non-blocking)
+    try {
+      const priceItems = itemsToAdd
+        .filter((i) => i.price != null)
+        .map((i) => ({ name: i.name.trim(), price: i.price, currency: i.currency ?? 'USD', countryCode: i.countryCode ?? undefined }))
+      if (priceItems.length > 0) {
+        void fetch('/api/pantry/receipt-price', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items: priceItems }),
+        }).catch((e) => console.warn('Price ingestion failed', e))
+      }
+    } catch (err) {
+      console.warn('Failed to send price ingest', err)
+    }
+
     onClose()
   }
 
@@ -711,8 +735,22 @@ export function AddItemModal({ onClose, initialMode = 'manual' }: AddItemModalPr
                     <p className="text-xs text-muted-foreground">{receiptItems.filter((i) => i.confirmed).length} selected</p>
                   </div>
                   <div className="mb-5">
-                    <ReviewList items={receiptItems} onChange={setReceiptItems} />
+                    <ReviewList items={receiptItems} onChange={(items) => { setReceiptItems(items); setShowPriceReview(items.some(i => i.price != null)) }} />
                   </div>
+                  {showPriceReview && (
+                    <div className="mb-4 rounded-lg border border-border p-3 bg-card">
+                      <p className="text-sm font-medium text-foreground mb-2">Price review</p>
+                      <p className="text-xs text-muted-foreground mb-2">Confirm prices for items — these will be used to update your local price averages.</p>
+                      <div className="grid gap-2">
+                        {receiptItems.filter(i => i.price != null).map((it) => (
+                          <div key={it.id} className="flex items-center justify-between text-xs">
+                            <div className="truncate mr-2">{it.name}</div>
+                            <div className="text-right">{it.currency ?? 'USD'} {Number(it.price).toFixed(2)}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <div className="flex gap-3">
                     <button type="button" onClick={resetReceipt} className="flex-1 border border-border text-foreground py-2.5 rounded-md text-sm font-medium hover:bg-muted transition-colors">
                       Retry

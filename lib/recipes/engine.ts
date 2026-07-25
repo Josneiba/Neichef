@@ -89,8 +89,10 @@ export function filterAndScoreRecipes(
     if (missingIngredients.length > maxMissingRequired) continue
 
     let score = matchPercentage * 100
-    score += expiringItemsUsedCount * 15
-    score -= missingIngredients.length * 5
+    // Strongly prefer recipes that use expiring items
+    score += expiringItemsUsedCount * 30
+    // Penalize missing ingredients lightly
+    score -= missingIngredients.length * 3
 
     results.push({
       recipe,
@@ -103,4 +105,11 @@ export function filterAndScoreRecipes(
   }
 
   return results.sort((a, b) => b.score - a.score)
+}
+
+export function prioritizeForHome(pantry: PantryItem[], recipes: Recipe[], limit = 3) {
+  const scored = filterAndScoreRecipes(pantry, recipes, { minMatchPercentage: 0.2, maxMissingRequired: 6, boostExpiringDays: 3 })
+  const expiringFirst = scored.filter((s) => s.expiringItemsUsedCount > 0)
+  const others = scored.filter((s) => s.expiringItemsUsedCount === 0)
+  return [...expiringFirst, ...others].slice(0, limit).map((s) => ({ id: s.recipe.id, title: s.recipe.title, pantryMatchCount: s.matchedIngredients.length, usesExpiringItems: s.expiringItemsUsedCount > 0 }))
 }

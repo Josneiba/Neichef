@@ -43,6 +43,12 @@ export default function PantryPage() {
 
   const expiredCount = useMemo(() => items.filter((i) => i.urgency === 'expired').length, [items])
   const expiringCount = useMemo(() => items.filter((i) => i.urgency === 'expiring').length, [items])
+  const expiringSoon = useMemo(() => items.filter((i) => {
+    const exp = new Date(i.expirationDate)
+    const today = new Date()
+    const diff = Math.ceil((exp.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+    return diff >= 0 && diff <= 2
+  }), [items])
 
   return (
     <div className="px-6 py-8 max-w-5xl mx-auto pb-24 lg:pb-8">
@@ -61,6 +67,22 @@ export default function PantryPage() {
           {t('addIngredients')}
         </button>
       </div>
+
+      {/* Expiration banner: highlight items going bad in next 48 hours */}
+      {expiringSoon.length > 0 && (
+        <div className="mb-6 rounded-lg border border-rose-200 bg-rose-50 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-rose-800">{expiringSoon.length} item{expiringSoon.length > 1 ? 's' : ''} expiring soon</p>
+              <p className="text-xs text-rose-700/80">Cook something now to avoid waste — we prioritized recipes that use these ingredients.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <a href="/recipes/suggestions?urgency=expiring" className="inline-flex items-center gap-2 bg-rose-600 text-white px-3 py-2 rounded-md text-sm">Find recipes</a>
+              <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="text-sm text-rose-700 underline">Later</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <div className="rounded-xl border border-border bg-card p-4">

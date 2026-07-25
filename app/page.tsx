@@ -13,6 +13,7 @@ import {
   Clock,
   BarChart2,
 } from 'lucide-react'
+import ExpiringRecipesServer from '@/components/recipes/expiring-recipes-server'
 
 function XMark({ className }: { className?: string }) {
   return (
@@ -133,17 +134,22 @@ export default function LandingPage() {
                     </div>
                   </div>
                 </div>
+                <div className="mt-4">
+                  <div className="text-xs text-muted-foreground mb-2">Recipes to use soon</div>
+                  <ExpiringRecipesServer />
+                </div>
               </div>
 
               {/* Floating notification */}
               <div className="absolute -top-4 -right-6 bg-card border border-border rounded-lg p-3 shadow-sm hidden md:block">
-                <div className="flex items-start gap-2.5 max-w-[200px]">
-                  <div className="w-6 h-6 rounded-full bg-[oklch(0.94_0.07_75)] flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <Bell className="w-3 h-3 text-[oklch(0.42_0.10_55)]" strokeWidth={2} />
+                <div className="flex items-start gap-2.5 max-w-[240px]">
+                  <div className="w-6 h-6 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <Bell className="w-3 h-3 text-amber-800" strokeWidth={2} />
                   </div>
                   <div>
-                    <p className="text-xs font-medium text-foreground leading-snug">Salmon expires tomorrow</p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">Pan-seared salmon uses it</p>
+                    <p className="text-xs font-medium text-foreground leading-snug">Items expiring soon</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">Find recipes using them</p>
+                    <a href="/recipes/suggestions?urgency=expiring" className="mt-2 inline-block text-xs text-primary underline">See suggestions</a>
                   </div>
                 </div>
               </div>

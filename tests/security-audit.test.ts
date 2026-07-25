@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/supabase/server', () => ({
   createSupabaseServerClient: vi.fn(),
@@ -17,18 +17,25 @@ vi.mock('@/lib/dbCircuit', () => ({
   markDbSuccess: vi.fn(),
 }))
 
-vi.mock('@/lib/rate-limit', async () => {
-  const actual = await vi.importActual<typeof import('@/lib/rate-limit')>('@/lib/rate-limit')
+vi.mock('@/lib/rate-limit', () => {
   return {
-    ...actual,
     aiRateLimiter: {
       check: vi.fn(),
     },
+    rateLimitHeaders: (r: any) => ({
+      'X-RateLimit-Limit': String(r?.limit ?? 0),
+      'X-RateLimit-Remaining': String(r?.remaining ?? 0),
+      'Retry-After': String(Math.ceil(((r?.retryAfterMs ?? 0) / 1000) || 0)),
+    }),
   }
 })
 
-const { createSupabaseServerClient } = await import('@/lib/supabase/server')
-const { aiRateLimiter } = await import('@/lib/rate-limit')
+let createSupabaseServerClient: any
+let aiRateLimiter: any
+beforeAll(async () => {
+  createSupabaseServerClient = (await import('@/lib/supabase/server')).createSupabaseServerClient
+  aiRateLimiter = (await import('@/lib/rate-limit')).aiRateLimiter
+})
 
 beforeEach(() => {
   vi.clearAllMocks()
