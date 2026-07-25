@@ -67,7 +67,7 @@ function RecipeCard({ recipe, onToggleSave }: { recipe: Recipe; onToggleSave: (i
           <div className="flex-1 h-1 bg-border rounded-full overflow-hidden">
             <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${matchRatio * 100}%` }} />
           </div>
-          <span className="text-xs text-muted-foreground flex-shrink-0">
+          <span className="text-xs text-muted-foreground shrink-0">
             {recipe.pantryMatchCount}/{recipe.totalIngredients} {t('inPantry')}
           </span>
         </div>
@@ -101,7 +101,6 @@ function RecipeCard({ recipe, onToggleSave }: { recipe: Recipe; onToggleSave: (i
 }
 
 function RecipesContent() {
-  const t = useT()
   const searchParams = useSearchParams()
   const { recipes, suggestedRecipes, savedRecipes, toggleSave, findRecipesByIngredients, usePantrySuggestions, isLoadingSuggestions, isLoadingRecipes, suggestionError } = useRecipes()
   const [tab, setTab] = useState<Tab>('suggested')
@@ -112,6 +111,7 @@ function RecipesContent() {
   const [matchMode, setMatchMode] = useState<'flexible' | 'exact'>('flexible')
   const [fallbackRecipes, setFallbackRecipes] = useState<Recipe[] | null>(null)
   const [fallbackKey, setFallbackKey] = useState<string>('')
+  const [currentPage, setCurrentPage] = useState(1)
 
   useEffect(() => {
     const ingredients = searchParams.get('ingredients')
@@ -124,6 +124,7 @@ function RecipesContent() {
     setIngredientText(ingredients)
     setMatchMode(searchParams.get('matchMode') === 'exact' ? 'exact' : 'flexible')
     setTab('suggested')
+    setCurrentPage(1)
     void findRecipesByIngredients(
       parsedIngredients,
       searchParams.get('matchMode') === 'exact' ? 'exact' : 'flexible',
@@ -145,13 +146,21 @@ function RecipesContent() {
     return true
   })
 
-  const isLoading = isLoadingSuggestions || isLoadingRecipes
-  const emptyStateAction = tab === 'saved'
-    ? <Link href="/app/recipes" className="text-sm font-medium text-primary hover:underline">Browse suggested recipes</Link>
-    : tab === 'mine'
-      ? <Link href="/app/recipes/new" className="text-sm font-medium text-primary hover:underline">Add a recipe</Link>
-      : <button type="button" onClick={() => { setDiffFilter('all'); setCostFilter('all'); setMaxTime('any') }} className="text-sm font-medium text-primary hover:underline">Reset filters</button>
+  const pageSize = 10
+  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const pagedRecipes = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
+  useEffect(() => {
+    if (currentPage > pageCount) {
+      setCurrentPage(pageCount)
+    }
+  }, [currentPage, pageCount])
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [tab, diffFilter, costFilter, maxTime, suggestedRecipes.length, savedRecipes.length, recipes.length])
+
+  const isLoading = isLoadingSuggestions || isLoadingRecipes
   // When there are no filtered results for suggestions, try fetching a
   // fallback list from the public `/api/recipes` endpoint (which itself
   // returns external fallbacks when DB is unavailable). This prevents the
@@ -193,11 +202,12 @@ function RecipesContent() {
   function handleIngredientSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const ingredients = parseIngredientList(ingredientText)
+    setTab('suggested')
+    setCurrentPage(1)
     if (ingredients.length === 0) {
       void usePantrySuggestions()
       return
     }
-    setTab('suggested')
     void findRecipesByIngredients(ingredients, matchMode)
   }
 
@@ -247,7 +257,7 @@ function RecipesContent() {
           </button>
           <button
             type="button"
-            onClick={() => { setIngredientText(''); void usePantrySuggestions() }}
+            onClick={() => { setIngredientText(''); setTab('suggested'); void usePantrySuggestions() }}
             className="px-3 py-2.5 rounded-md border border-border text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           >
             Use pantry
@@ -329,11 +339,34 @@ function RecipesContent() {
           />
         )
       ) : (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filtered.map((recipe) => (
-            <RecipeCard key={recipe.id} recipe={recipe} onToggleSave={toggleSave} />
-          ))}
-        </div>
+        <>
+          {filtered.length > 0 && (
+            <p className="text-sm text-muted-foreground mb-4">
+              Showing {pagedRecipes.length} of {filtered.length} result{filtered.length === 1 ? '' : 's'}
+            </p>
+          )}
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {pagedRecipes.map((recipe) => (
+              <RecipeCard key={recipe.id} recipe={recipe} onToggleSave={toggleSave} />
+            ))}
+          </div>
+          {pageCount > 1 && (
+            <div className="mt-6 flex items-center justify-center gap-2">
+              {Array.from({ length: pageCount }, (_, index) => (
+                <button
+                  key={index}
+                  onClick={() => setCurrentPage(index + 1)}
+                  className={cn(
+                    'px-3 py-2 rounded-md text-sm transition-colors',
+                    currentPage === index + 1 ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground hover:bg-muted'
+                  )}
+                >
+                  {index + 1}
+                </button>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   )

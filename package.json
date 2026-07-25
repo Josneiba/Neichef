@@ -3,16 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "node scripts/apply-prisma.js",
     "dev": "next dev",
+    "prebuild": "node scripts/apply-prisma.js",
     "build": "prisma generate && next build",
     "apply:prisma": "node scripts/apply-prisma.js",
-    "postinstall": "node scripts/apply-prisma.js",
+    "prisma:push": "pnpm exec -- prisma db push --schema=prisma/schema.prisma --accept-data-loss",
     "start": "next start",
     "lint": "eslint .",
     "test": "vitest run",
-    "prisma": {
-      "seed": "tsx prisma/seed.ts"
-    }
+    "prisma:seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",

@@ -1,10 +1,10 @@
 import { prisma } from '@/lib/prisma'
-import { normalizeFoodName, isStapleIngredient, estimateRecipeCostLevel } from '@/lib/recipes/enrich'
+import { normalizeFoodName, estimateRecipeCostLevel } from '@/lib/recipes/enrich'
 import { isDbAvailable, reportDbFailure, markDbSuccess } from '@/lib/dbCircuit'
 
 // In-process cache to avoid unnecessary DB calls for recently-seen external
 // recipes. This complements the shared DB circuit breaker above.
-const inMemoryRecipeCache = new Map<string, any>()
+const inMemoryRecipeCache = new Map<string, Record<string, unknown>>()
 // Queue of normalized external recipes to persist when DB recovers.
 const writeQueue: Array<{ externalId: string; normalized: ReturnType<typeof normalizeMealToRecipe> }> = []
 
@@ -43,7 +43,7 @@ async function flushWriteQueue() {
       }})
     }
     markDbSuccess()
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.warn('[recipes:external] flushWriteQueue failed', err)
     reportDbFailure()
     // put the item back for later retry
@@ -144,8 +144,9 @@ export function normalizeMealToRecipe(meal: MealDbMeal) {
 
   const steps = splitInstructionsIntoSteps(textField(meal.strInstructions)).map((instruction, idx) => ({ step: idx + 1, instruction }))
   const tags = textField(meal.strTags).split(',').filter(Boolean)
-
-    const estimatedCost = estimateRecipeCostLevel(ingredients)
+  const estimatedCost = estimateRecipeCostLevel(ingredients)
+  const estimatedTime = Number(meal.estimatedTime) || Math.max(10, ingredients.length * 6 + 10)
+  const estimatedDifficulty = ingredients.length > 8 ? 'hard' : ingredients.length > 5 ? 'medium' : 'easy'
 
   return {
     id: `external-${textField(meal.idMeal)}`,
@@ -178,9 +179,9 @@ export async function getRecipeDetail(externalId: string) {
         return cached
       }
     }
-    } catch (err: any) {
+    } catch (err: unknown) {
     console.warn('[recipes:external] cache lookup failed; fetching from TheMealDB only', { externalId, err })
-    const msg = String((err as any)?.message ?? err)
+    const msg = err instanceof Error ? err.message : String(err)
     if (msg.includes('ECIRCUITBREAKER') || msg.includes('self-signed certificate') || msg.includes('TlsConnectionError') || msg.includes('too many authentication')) {
       // report failure to backoff with exponential jitter
       reportDbFailure()
@@ -245,7 +246,7 @@ export async function getRecipeDetail(externalId: string) {
     // attempt to flush one queued item now that DB is healthy
     void flushWriteQueue()
     return created
-  } catch (err: any) {
+  } catch (err: unknown) {
     // On DB write error, report failure and return the normalized external object
     console.warn('[recipes:external] db write failed; disabling DB for a short window', err)
     reportDbFailure()
@@ -270,14 +271,20 @@ export async function resolveRecipeId(id: string): Promise<string | null> {
 
 export async function fetchRandomMeals(count = 8): Promise<ReturnType<typeof normalizeMealToRecipe>[]> {
   const results: ReturnType<typeof normalizeMealToRecipe>[] = []
-  for (let i = 0; i < count; i++) {
+  const seen = new Set<string>()
+  for (let i = 0; i < Math.max(count, 5) * 2; i++) {
     try {
       const res = await fetch('https://www.themealdb.com/api/json/v1/1/random.php')
       if (!res.ok) continue
       const data = await res.json()
       const meal = data?.meals?.[0]
       if (!meal) continue
-      results.push(normalizeMealToRecipe(meal))
+      const normalized = normalizeMealToRecipe(meal)
+      const key = normalized.title?.toLowerCase() ?? ''
+      if (!key || seen.has(key)) continue
+      seen.add(key)
+      results.push(normalized)
+      if (results.length >= count) break
     } catch {
       // ignore individual failures
     }
@@ -290,6 +297,7 @@ export async function searchRecipesByIngredients(ingredients: string[]): Promise
 
   const idCounts: Record<string, number> = {}
   const nameResults: Record<string, ReturnType<typeof normalizeMealToRecipe>> = {}
+  const seenIds = new Set<string>()
 
   // If the user provided a single free-text term that looks like a dish
   // name (e.g. "pasta", "cookies"), try TheMealDB search by name to
@@ -348,33 +356,36 @@ export async function searchRecipesByIngredients(ingredients: string[]): Promise
 
     for (const m of foundMeals) {
       const mealId = textField((m as MealDbMeal).idMeal)
-      if (mealId) idCounts[mealId] = (idCounts[mealId] || 0) + 1
+      if (mealId) {
+        idCounts[mealId] = (idCounts[mealId] || 0) + 1
+        seenIds.add(mealId)
+      }
     }
   }
 
   // Rank by counts
-  const ranked = Object.entries(idCounts).sort((a, b) => b[1] - a[1]).slice(0, 40)
+  const ranked = Object.entries(idCounts).sort((a, b) => b[1] - a[1]).slice(0, 60)
 
   // Batch-resolve DB-cached recipes for the top candidates to avoid many
   // sequential DB calls (this greatly reduces connection churn).
   const topIds = ranked.map(([id]) => id)
-  let cachedById: Record<string, any> = {}
+  let cachedById: Record<string, Record<string, unknown>> = {}
   try {
     if (isDbAvailable()) {
       const cached = await prisma.recipe.findMany({ where: { externalId: { in: topIds }, source: 'external' }, include: { ingredients: true, steps: true } })
-      cachedById = Object.fromEntries(cached.map((c: any) => [String(c.externalId), c]))
+      cachedById = Object.fromEntries(cached.map((c: Record<string, unknown> & { externalId?: string }) => [String(c.externalId), c]))
       // prime in-memory cache
       for (const c of cached) inMemoryRecipeCache.set(String(c.externalId), c)
     }
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.warn('[recipes:external] batch cache lookup failed', err)
-    const msg = String((err as any)?.message ?? err)
+    const msg = err instanceof Error ? err.message : String(err)
     if (msg.includes('ECIRCUITBREAKER') || msg.includes('too many authentication')) reportDbFailure()
   }
 
   const results: RecipeSearchResult[] = []
-  for (const [id, count] of ranked.slice(0, 20)) {
-    let detail: any = null
+  for (const [id, count] of ranked.slice(0, 24)) {
+    let detail: Record<string, unknown> | null = null
     if (inMemoryRecipeCache.has(id)) detail = inMemoryRecipeCache.get(id)
     else if (cachedById[id]) detail = cachedById[id]
     else if (nameResults[id]) detail = nameResults[id]

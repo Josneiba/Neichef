@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import type { Prisma } from '@prisma/client'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
-import { searchRecipesByIngredients, type RecipeSearchResult } from '@/lib/recipes/external-source'
-import { ingredientMatchesPantry, isStapleIngredient, matchIngredientsToPantry, parseIngredientList } from '@/lib/recipes/enrich'
+import { fetchRandomMeals, searchRecipesByIngredients, type RecipeSearchResult } from '@/lib/recipes/external-source'
+import { ingredientMatchesPantry, isStapleIngredient, matchIngredientsToPantry, normalizeFoodName, parseIngredientList } from '@/lib/recipes/enrich'
 import { isDbAvailable, reportDbFailure, markDbSuccess } from '@/lib/dbCircuit'
 
 const querySchema = z.object({
@@ -40,7 +41,42 @@ function hasAllMainIngredients(recipe: Ranked, pantryNames: string[]) {
 
 function recipeText(recipe: Ranked) {
   const tags = Array.isArray(recipe.tags) ? recipe.tags.join(' ') : ''
-  return `${recipe.title ?? ''} ${recipe.description ?? ''} ${tags}`.toLowerCase()
+  const ingredients = Array.isArray(recipe.ingredients) ? recipe.ingredients.map((ingredient) => ingredient.name).join(' ') : ''
+  return `${recipe.title ?? ''} ${recipe.description ?? ''} ${tags} ${ingredients}`.toLowerCase()
+}
+
+function matchesSearchTerms(recipe: Ranked, searchTerms: string[], matchMode: 'flexible' | 'exact') {
+  if (searchTerms.length === 0) return true
+  const text = recipeText(recipe)
+  const matches = searchTerms.map((term) => term.toLowerCase().trim()).filter(Boolean).map((term) => {
+    const normalizedTerm = term.replace(/[^a-z0-9\s]/gi, '')
+    return text.includes(normalizedTerm)
+  })
+
+  if (matchMode === 'exact') {
+    return matches.every(Boolean)
+  }
+  return matches.some(Boolean)
+}
+
+function buildSearchFilter(searchTerms: string[], matchMode: 'flexible' | 'exact') {
+  const terms = searchTerms
+    .map((term) => normalizeFoodName(term))
+    .filter(Boolean)
+    .slice(0, 8)
+
+  if (terms.length === 0) return undefined
+
+  const termClauses = terms.map((term) => ({
+    OR: [
+      { title: { contains: term, mode: 'insensitive' as const } },
+      { description: { contains: term, mode: 'insensitive' as const } },
+      { ingredients: { some: { name: { contains: term, mode: 'insensitive' as const } } } },
+      { tags: { has: term } },
+    ],
+  }))
+
+  return matchMode === 'exact' ? { AND: termClauses } : { OR: termClauses }
 }
 
 function matchesFlavor(recipe: Ranked, flavor: 'any' | 'sweet' | 'savory') {
@@ -76,6 +112,10 @@ export async function GET(request: Request) {
     const matchMode = parsed.success ? parsed.data.matchMode ?? 'flexible' : 'flexible'
     const flavor = parsed.success ? parsed.data.flavor ?? 'any' : 'any'
     const mealType = parsed.success ? parsed.data.mealType ?? 'any' : 'any'
+    const freeText = parsed.success && parsed.data.ingredients ? normalizeFoodName(parsed.data.ingredients) : ''
+    const queryTerms = requestedIngredients.length > 0
+      ? requestedIngredients
+      : freeText.split(/\s+/).filter(Boolean).slice(0, 8)
 
     // Try to get user ID, but don't fail if user is not authenticated
     let userId: string | null = null
@@ -98,9 +138,9 @@ export async function GET(request: Request) {
           ])
           pantry = pantryItems
           savedIds = new Set(savedRows.map((s) => s.recipeId))
-        } catch (err: any) {
+        } catch (err: unknown) {
           console.warn('[recipes:suggestions] pantry/saved lookup failed; falling back to external-only', err)
-          const msg = String(err?.message ?? err)
+          const msg = err instanceof Error ? err.message : String(err)
           if (msg.includes('ECIRCUITBREAKER') || msg.includes('too many authentication')) reportDbFailure()
           pantry = []
           savedIds = new Set()
@@ -121,6 +161,7 @@ export async function GET(request: Request) {
       userId,
       source: requestedIngredients.length > 0 ? 'manual-ingredients' : 'pantry',
       ingredientCount: pantryNames.length,
+      queryTerms,
       matchMode,
       flavor,
       mealType,
@@ -130,7 +171,12 @@ export async function GET(request: Request) {
     let normalizedDb: Ranked[] = []
     try {
       if (isDbAvailable()) {
-        const dbRecipes = await prisma.recipe.findMany({ where: { OR: [{ isPublic: true }, { userId }] }, include: { ingredients: true, steps: true } })
+        const dbWhere = { OR: [{ isPublic: true }, { userId }] }
+        const searchFilter = buildSearchFilter(queryTerms, matchMode)
+        const dbRecipes = await prisma.recipe.findMany({
+          where: searchFilter ? { AND: [dbWhere, searchFilter] } : dbWhere,
+          include: { ingredients: true, steps: true },
+        })
         normalizedDb = dbRecipes.map((r) => {
           const match = matchIngredientsToPantry(r.ingredients, pantryForMatching)
           return { ...r, ...match, isSaved: savedIds.has(r.id), isOwner: r.userId === userId }
@@ -140,20 +186,29 @@ export async function GET(request: Request) {
       } else {
         console.warn('[recipes:suggestions] DB unavailable; skipping local recipes')
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.warn('[recipes:suggestions] database query failed, will use external recipes only', err)
-      const msg = String((err as any)?.message ?? err)
+      const msg = err instanceof Error ? err.message : String(err)
       if (msg.includes('ECIRCUITBREAKER') || msg.includes('too many authentication')) reportDbFailure()
     }
 
     // External results
     let external: Ranked[] = []
     try {
-      external = (await searchRecipesByIngredients(pantryNames)).map((recipe) => {
-        const ingredients = Array.isArray(recipe.ingredients) ? recipe.ingredients : []
-        const match = matchIngredientsToPantry(ingredients, pantryForMatching)
-        return { ...recipe, ...match, isSaved: savedIds.has(recipe.id), isOwner: false }
-      })
+      const searchQuery = queryTerms.length > 0 ? queryTerms : pantryNames.filter(Boolean)
+      if (searchQuery.length > 0) {
+        external = (await searchRecipesByIngredients(searchQuery)).map((recipe) => {
+          const ingredients = Array.isArray(recipe.ingredients) ? recipe.ingredients : []
+          const match = matchIngredientsToPantry(ingredients, pantryForMatching)
+          return { ...recipe, ...match, isSaved: savedIds.has(recipe.id), isOwner: false }
+        })
+      } else {
+        external = (await fetchRandomMeals(20)).map((recipe) => {
+          const ingredients = Array.isArray(recipe.ingredients) ? recipe.ingredients : []
+          const match = matchIngredientsToPantry(ingredients, pantryForMatching)
+          return { ...recipe, ...match, isSaved: savedIds.has(recipe.id), isOwner: false }
+        })
+      }
     } catch (err) {
       console.error('[recipes:suggestions] external search failed', err)
     }
@@ -167,7 +222,7 @@ export async function GET(request: Request) {
       if (maxTime !== undefined && totalTime !== undefined && totalTime > maxTime) continue
       if (!matchesFlavor(r, flavor)) continue
       if (!matchesMealType(r, mealType)) continue
-      if (matchMode === 'exact' && !hasAllMainIngredients(r, pantryNames)) continue
+      if (!matchesSearchTerms(r, queryTerms, matchMode)) continue
       const key = (r.title || '').toLowerCase()
       const existing = combinedMap.get(key)
       if (!existing || (r.pantryMatchCount ?? 0) > (existing.pantryMatchCount ?? 0)) combinedMap.set(key, r)
@@ -181,7 +236,8 @@ export async function GET(request: Request) {
       return bRatio - aRatio
     })
 
-    return NextResponse.json(results)
+    const maxResults = queryTerms.length > 0 ? 50 : 10
+    return NextResponse.json(results.slice(0, maxResults))
   } catch (err) {
     console.error('Failed to build recipe suggestions:', err)
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

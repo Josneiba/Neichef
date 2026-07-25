@@ -1,0 +1,19 @@
+app/api/recipes/[id]/route.ts(38,7): error TS2322: Type 'Record<string, unknown> | ({ ingredients: { name: string; id: string; unit: string; recipeId: string; amount: number; substitution: string | null; }[]; steps: { id: string; recipeId: string; step: number; instruction: string; durationMinutes: number | null; }[]; } & { ...; }) | null | undefined' is not assignable to type 'RecipeForResponse | null'.
+  Type 'undefined' is not assignable to type 'RecipeForResponse | null'.
+lib/rate-limit.ts(82,72): error TS2339: Property 'retryAfter' does not exist on type 'RatelimitResponse'.
+lib/recipes/external-source.ts(269,3): error TS2322: Type '{} | null' is not assignable to type 'string | null'.
+  Type '{}' is not assignable to type 'string'.
+lib/recipes/external-source.ts(376,50): error TS2345: Argument of type '(c: Record<string, unknown> & { externalId?: string; }) => [string, Record<string, unknown> & { externalId?: string; }]' is not assignable to parameter of type '(value: { ingredients: { name: string; id: string; unit: string; recipeId: string; amount: number; substitution: string | null; }[]; steps: { id: string; recipeId: string; step: number; instruction: string; durationMinutes: number | null; }[]; } & { ...; }, index: number, array: ({ ...; } & { ...; })[]) => [...]'.
+  Types of parameters 'c' and 'value' are incompatible.
+    Type '{ ingredients: { name: string; id: string; unit: string; recipeId: string; amount: number; substitution: string | null; }[]; steps: { id: string; recipeId: string; step: number; instruction: string; durationMinutes: number | null; }[]; } & { ...; }' is not assignable to type 'Record<string, unknown> & { externalId?: string | undefined; }'.
+      Type '{ ingredients: { name: string; id: string; unit: string; recipeId: string; amount: number; substitution: string | null; }[]; steps: { id: string; recipeId: string; step: number; instruction: string; durationMinutes: number | null; }[]; } & { ...; }' is not assignable to type '{ externalId?: string | undefined; }'.
+        Types of property 'externalId' are incompatible.
+          Type 'string | null' is not assignable to type 'string | undefined'.
+            Type 'null' is not assignable to type 'string | undefined'.
+lib/recipes/external-source.ts(389,38): error TS2322: Type 'Record<string, unknown> | undefined' is not assignable to type 'Record<string, unknown> | null'.
+  Type 'undefined' is not assignable to type 'Record<string, unknown> | null'.
+lib/recipes/external-source.ts(394,7): error TS2322: Type 'Record<string, unknown> | ({ ingredients: { name: string; id: string; unit: string; recipeId: string; amount: number; substitution: string | null; }[]; steps: { id: string; recipeId: string; step: number; instruction: string; durationMinutes: number | null; }[]; } & { ...; }) | null | undefined' is not assignable to type 'Record<string, unknown> | null'.
+  Type 'undefined' is not assignable to type 'Record<string, unknown> | null'.
+lib/recipes/external-source.ts(399,20): error TS2345: Argument of type '{ pantryMatchCount: number; totalIngredients: number; }' is not assignable to parameter of type 'RecipeSearchResult'.
+  Property 'id' is missing in type '{ pantryMatchCount: number; totalIngredients: number; }' but required in type 'RecipeSearchResult'.
+tests/rate-limit.test.ts(6,67): error TS2353: Object literal may only specify known properties, and 'keyGenerator' does not exist in type 'RateLimitOptions'.
