@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { extractNutritionPlan, supportedFileTypes, MAX_PLAN_UPLOAD_BYTES } from '@/lib/nutrition/extract-plan'
-import { createRateLimiter } from '@/lib/rate-limit'
+import { aiRateLimiter, rateLimitHeaders } from '@/lib/rate-limit'
 import { env } from '@/lib/env'
 
-const limiter = createRateLimiter({ windowMs: 60_000, max: 5 })
+const limiter = aiRateLimiter
 
 async function getUserId() {
   const supabase = await createSupabaseServerClient()
@@ -47,7 +47,10 @@ export async function POST(request: Request) {
 
   const rateLimitResult = await limiter.check(userId)
   if (!rateLimitResult.allowed) {
-    return NextResponse.json({ error: 'Too many requests. Please try again shortly.' }, { status: 429 })
+    return NextResponse.json(
+      { error: 'Too many requests. Please try again shortly.' },
+      { status: 429, headers: rateLimitHeaders(rateLimitResult) },
+    )
   }
 
   let rawFileUrl: string | undefined
@@ -71,7 +74,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: extraction.error }, { status: extraction.notConfigured ? 501 : 502 })
   }
 
-  return NextResponse.json({
+  const response = NextResponse.json({
     draft: {
       ...extraction.draft,
       rawFileUrl,
@@ -79,4 +82,7 @@ export async function POST(request: Request) {
       extractionStatus: 'done',
     },
   })
+  const headers = rateLimitHeaders(rateLimitResult)
+  Object.entries(headers).forEach(([key, value]) => response.headers.set(key, value))
+  return response
 }

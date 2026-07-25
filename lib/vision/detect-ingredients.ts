@@ -155,9 +155,9 @@ export async function detectIngredients(image: string): Promise<DetectIngredient
     if ((items.length === 0 || lowConfidence) && hasGemini) {
       const geminiResult = await runGeminiDetection(buffer, contentType)
       if (geminiResult.ok) {
-        items = geminiResult.items
+        items = geminiResult.items ?? []
       } else if (!hasHf) {
-        return { ok: false, error: geminiResult.error }
+        return { ok: false, error: geminiResult.error ?? 'Unable to parse Gemini response.' }
       }
     }
 
@@ -174,7 +174,11 @@ export async function detectIngredients(image: string): Promise<DetectIngredient
   }
 }
 
-async function runHuggingFaceDetection(buffer: Buffer, contentType: string, headers: Record<string, string>) {
+async function runHuggingFaceDetection(
+  buffer: Buffer,
+  contentType: string,
+  headers: Record<string, string>,
+): Promise<{ ok: true; items: DetectedIngredient[] } | { ok: false; error: string }> {
   try {
     let res = await callHuggingFace(buffer, contentType, headers)
 
@@ -216,7 +220,10 @@ async function runHuggingFaceDetection(buffer: Buffer, contentType: string, head
   }
 }
 
-async function runGeminiDetection(buffer: Buffer, contentType: string) {
+async function runGeminiDetection(
+  buffer: Buffer,
+  contentType: string,
+): Promise<{ ok: true; items: DetectedIngredient[] } | { ok: false; error: string }> {
   const text = await callGeminiVision(buffer, contentType)
   if (!text) {
     return { ok: false, error: 'Gemini ingredient detection failed or returned no text.' }

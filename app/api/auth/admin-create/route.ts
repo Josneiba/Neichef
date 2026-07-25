@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { env } from '@/lib/env'
 import { prisma } from '@/lib/prisma'
 import { isDbAvailable, reportDbFailure } from '@/lib/dbCircuit'
+import { createSupabaseServerClient } from '@/lib/supabase/server'
 
 const schema = z.object({
   name: z.string().min(2),
@@ -10,6 +11,16 @@ const schema = z.object({
   password: z.string().min(8),
   householdSize: z.number().int().min(1).max(6),
 })
+
+async function assertAdminUser() {
+  const supabase = await createSupabaseServerClient()
+  const { data } = await supabase.auth.getUser()
+  const user = data.user
+  if (!user) throw new Error('Unauthorized')
+
+  const role = String(user.app_metadata?.role ?? user.user_metadata?.role ?? '').toLowerCase()
+  if (role !== 'admin') throw new Error('Forbidden')
+}
 
 export async function POST(request: Request) {
   if (env.SUPABASE_SERVICE_ROLE_KEY === 'service-role-key') {
@@ -19,6 +30,15 @@ export async function POST(request: Request) {
   // Toggle to allow admin create only when explicitly enabled in env
   if (process.env.ENABLE_ADMIN_SIGNUP !== 'true') {
     return NextResponse.json({ error: 'Admin signup disabled' }, { status: 403 })
+  }
+
+  try {
+    await assertAdminUser()
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: err?.message === 'Forbidden' ? 'Forbidden' : 'Unauthorized' },
+      { status: err?.message === 'Forbidden' ? 403 : 401 },
+    )
   }
 
   const body = await request.json()

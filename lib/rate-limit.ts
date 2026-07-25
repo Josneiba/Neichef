@@ -6,6 +6,7 @@ export type RateLimitResult = {
   remaining: number
   resetAt: number
   retryAfterMs: number
+  limit: number
 }
 
 export type RateLimitOptions = {
@@ -36,7 +37,7 @@ function createInMemoryLimiter(options: RateLimitOptions) {
       if (!existing) {
         const resetAt = now + windowMs
         buckets.set(bucketKey, { count: 1, resetAt })
-        return { allowed: true, remaining: Math.max(0, max - 1), resetAt, retryAfterMs: 0 }
+        return { allowed: true, remaining: Math.max(0, max - 1), resetAt, retryAfterMs: 0, limit: max }
       }
 
       if (existing.count >= max) {
@@ -45,6 +46,7 @@ function createInMemoryLimiter(options: RateLimitOptions) {
           remaining: 0,
           resetAt: existing.resetAt,
           retryAfterMs: Math.max(0, existing.resetAt - now),
+          limit: max,
         }
       }
 
@@ -54,6 +56,7 @@ function createInMemoryLimiter(options: RateLimitOptions) {
         remaining: Math.max(0, max - existing.count),
         resetAt: existing.resetAt,
         retryAfterMs: 0,
+        limit: max,
       }
     },
   }
@@ -80,6 +83,7 @@ function createUpstashLimiter(options: RateLimitOptions) {
           remaining: Math.max(0, result.remaining ?? 0),
           resetAt: Date.now() + options.windowMs,
           retryAfterMs: result.success ? 0 : Math.max(0, Number(result.retryAfter ?? 0)),
+          limit: options.max,
         }
       },
     }
@@ -93,3 +97,17 @@ export function createRateLimiter(options: RateLimitOptions) {
   if (upstashLimiter) return upstashLimiter
   return createInMemoryLimiter(options)
 }
+
+export function rateLimitHeaders(result: RateLimitResult) {
+  const headers: Record<string, string> = {
+    'X-RateLimit-Limit': String(result.limit),
+    'X-RateLimit-Remaining': String(result.remaining),
+    'X-RateLimit-Reset': new Date(result.resetAt).toUTCString(),
+  }
+  if (result.retryAfterMs > 0) {
+    headers['Retry-After'] = String(Math.ceil(result.retryAfterMs / 1000))
+  }
+  return headers
+}
+
+export const aiRateLimiter = createRateLimiter({ windowMs: 60_000, max: 5, prefix: 'ai' })

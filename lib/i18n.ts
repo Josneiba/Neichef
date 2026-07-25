@@ -221,7 +221,6 @@ export const translations = {
     other: 'Other',
     // Add item modal
     itemName: 'Item name',
-    unit: 'unit',
     excludeItem: 'Exclude item',
     includeItem: 'Include item',
     addRowManually: 'Add row manually',
@@ -472,7 +471,6 @@ export const translations = {
     other: 'Otro',
     // Add item modal
     itemName: 'Nombre del artículo',
-    unit: 'unidad',
     excludeItem: 'Excluir artículo',
     includeItem: 'Incluir artículo',
     addRowManually: 'Agregar fila manualmente',
@@ -525,7 +523,8 @@ export const translations = {
 export type TranslationKey = keyof typeof translations['en']
 
 export function translate(key: TranslationKey, locale: Locale): string {
-  return translations[locale]?.[key] ?? translations.en[key] ?? key
+  const localeTranslations = translations[locale] as Record<string, string>
+  return localeTranslations[key] ?? translations.en[key] ?? key
 }
 
 interface LocaleContextValue {

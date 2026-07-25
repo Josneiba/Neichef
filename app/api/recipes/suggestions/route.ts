@@ -110,17 +110,26 @@ export async function GET(request: Request) {
     }
 
     // Fetch pantry items only if user is authenticated and no ingredients were manually provided
-    let pantry: { name: string; expirationDate: Date }[] = []
+    let pantry: PantryItem[] = []
     let savedIds = new Set<string>()
 
     if (userId && requestedIngredients.length === 0) {
       if (isDbAvailable()) {
         try {
           const [pantryItems, savedRows] = await Promise.all([
-            prisma.pantryItem.findMany({ where: { userId } }),
+            prisma.pantryItem.findMany({
+              where: { userId },
+              select: { id: true, name: true, quantity: true, unit: true, expirationDate: true },
+            }),
             prisma.savedRecipe.findMany({ where: { userId }, select: { recipeId: true } }),
           ])
-          pantry = pantryItems
+          pantry = pantryItems.map((item) => ({
+            id: item.id,
+            name: item.name,
+            quantity: item.quantity ?? 1,
+            unit: item.unit ?? 'pcs',
+            expiresAt: item.expirationDate,
+          }))
           savedIds = new Set(savedRows.map((s) => s.recipeId))
         } catch (err: unknown) {
           console.warn('[recipes:suggestions] pantry/saved lookup failed; falling back to external-only', err)
@@ -193,22 +202,33 @@ export async function GET(request: Request) {
         ? await searchRecipesByIngredients(searchQuery)
         : await fetchRandomMeals(20)
 
-      recipes.push(...externalRecipes.map((recipe) => ({
-        id: recipe.id,
-        title: recipe.title ?? 'Untitled recipe',
-        ingredients: Array.isArray(recipe.ingredients)
-          ? recipe.ingredients.map((ingredient) => ({
-              id: String(ingredient.id ?? ingredient.name),
-              name: ingredient.name,
-              amount: Number(ingredient.amount ?? 1),
-              unit: String(ingredient.unit ?? 'pcs'),
-            }))
-          : [],
-        prepTimeMinutes: recipe.prepTimeMinutes,
-        cookTimeMinutes: recipe.cookTimeMinutes,
-        difficulty: recipe.difficulty,
-        costLevel: recipe.costLevel,
-      })))
+      recipes.push(...externalRecipes.map((recipe) => {
+        const ingredients = Array.isArray(recipe.ingredients)
+          ? recipe.ingredients
+              .map((ingredient) => {
+                const rawIngredient = ingredient as Record<string, unknown>
+                const name = String(rawIngredient.name ?? '').trim()
+                if (!name) return null
+                return {
+                  id: String(rawIngredient.id ?? name),
+                  name,
+                  amount: Number(rawIngredient.amount ?? 1),
+                  unit: String(rawIngredient.unit ?? 'pcs'),
+                }
+              })
+              .filter((ingredient): ingredient is { id: string; name: string; amount: number; unit: string } => ingredient !== null)
+          : []
+
+        return {
+          id: recipe.id,
+          title: recipe.title ?? 'Untitled recipe',
+          ingredients,
+          prepTimeMinutes: recipe.prepTimeMinutes,
+          cookTimeMinutes: recipe.cookTimeMinutes,
+          difficulty: recipe.difficulty,
+          costLevel: recipe.costLevel,
+        }
+      }))
     } catch (err) {
       console.error('[recipes:suggestions] external search failed', err)
     }

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
-import { createRateLimiter } from '@/lib/rate-limit'
+import { aiRateLimiter, rateLimitHeaders } from '@/lib/rate-limit'
 import { callGeminiWithFile } from '@/lib/ai/gemini'
 
 const schema = z.object({
@@ -9,7 +9,7 @@ const schema = z.object({
   imageBase64: z.string().optional(),
   mimeType: z.string().optional(),
 })
-const limiter = createRateLimiter({ windowMs: 60_000, max: 8 })
+const limiter = aiRateLimiter
 
 async function getUserId() {
   const supabase = await createSupabaseServerClient()
@@ -50,7 +50,10 @@ export async function POST(request: Request) {
 
   const rateLimitResult = await limiter.check(userId || 'anonymous')
   if (!rateLimitResult.allowed) {
-    return NextResponse.json({ error: 'Too many requests. Please try again shortly.' }, { status: 429 })
+    return NextResponse.json(
+      { error: 'Too many requests. Please try again shortly.' },
+      { status: 429, headers: rateLimitHeaders(rateLimitResult) },
+    )
   }
 
   try {
@@ -67,7 +70,7 @@ export async function POST(request: Request) {
       buffer = Buffer.from(await imageRes.arrayBuffer())
       filename = imageUrl.split('/').pop() || filename
     } else {
-      const parsedData = parseDataUrl(imageBase64)
+      const parsedData = parseDataUrl(imageBase64!)
       buffer = Buffer.from(parsedData.base64, 'base64')
       resolvedMimeType = mimeType || parsedData.mimeType
     }
@@ -76,23 +79,34 @@ export async function POST(request: Request) {
     const responseText = await callGeminiWithFile(file, 'upload_photo')
     const parsedResult = JSON.parse(responseText)
 
-    const items = Array.isArray(parsedResult.items) ? parsedResult.items.map((item: any) => ({
-      name: String(item.name ?? '').trim(),
-      quantity: Number(item.quantity ?? 1),
-      unit: String(item.unit ?? 'unit'),
-      category: String(item.category ?? 'Pantry'),
-      estimatedShelfLifeDays: item.estimatedShelfLifeDays != null ? Number(item.estimatedShelfLifeDays) : undefined,
-      totalPrice: item.totalPrice != null ? Number(item.totalPrice) : undefined,
-      unitPrice: item.unitPrice != null ? Number(item.unitPrice) : undefined,
-    })).filter((item) => item.name.length > 0) : []
+    const items = Array.isArray(parsedResult.items)
+      ? (parsedResult.items as unknown[])
+          .map((item) => {
+            const raw = item as Record<string, unknown>
+            return {
+              name: String(raw.name ?? '').trim(),
+              quantity: Number(raw.quantity ?? 1),
+              unit: String(raw.unit ?? 'unit'),
+              category: String(raw.category ?? 'Pantry'),
+              estimatedShelfLifeDays:
+                raw.estimatedShelfLifeDays != null ? Number(raw.estimatedShelfLifeDays) : undefined,
+              totalPrice: raw.totalPrice != null ? Number(raw.totalPrice) : undefined,
+              unitPrice: raw.unitPrice != null ? Number(raw.unitPrice) : undefined,
+            }
+          })
+          .filter((item) => item.name.length > 0)
+      : []
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       storeName: String(parsedResult.storeName ?? 'Store Receipt'),
       transactionDate: String(parsedResult.transactionDate ?? new Date().toISOString()),
       totalAmount: Number(parsedResult.totalAmount ?? 0),
       items,
     })
+    const headers = rateLimitHeaders(rateLimitResult)
+    Object.entries(headers).forEach(([key, value]) => response.headers.set(key, value))
+    return response
   } catch (err: any) {
     console.error('[pantry:receipt-import] receipt parsing failed', err)
     return NextResponse.json({ error: err.message || 'Failed to parse receipt document' }, { status: 500 })
