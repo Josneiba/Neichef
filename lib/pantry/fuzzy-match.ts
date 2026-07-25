@@ -2,7 +2,7 @@ export function sanitizeIngredientName(rawName: string): string {
   return rawName
     .toLowerCase()
     .trim()
-    .replace(/\b(organic|fresh|raw|diced|sliced|chopped|canned|frozen|large|small|medium|kg|g|lb|oz|pcs|pieces)\b/gi, '')
+    .replace(/\b(organic|fresh|raw|diced|sliced|chopped|canned|frozen|large|small|medium|kg|g|lb|oz|pcs|pieces|pack|package|slice|slices|bunch|container)\b/gi, '')
     .replace(/[^a-z0-9\s]/gi, '')
     .replace(/\s+/g, ' ')
     .trim()
