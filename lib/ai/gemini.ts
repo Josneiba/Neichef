@@ -46,10 +46,15 @@ export async function callGeminiWithFile(file: File, source: 'upload_photo' | 'u
   const base64 = await fileToBase64(file)
 
   const body = {
-    // The API shape here is a best-effort call to the Generative Language
-    // endpoint. If your Google setup expects OAuth tokens or a different
-    // request shape, update accordingly.
-    prompt: `${instructions}\n\nSource: ${source}\nFilename: ${file.name}\nMIME-Type: ${file.type}\nFileBase64: ${base64}`,
+    contents: [
+      {
+        parts: [
+          {
+            text: `${instructions}\n\nSource: ${source}\nFilename: ${file.name}\nMIME-Type: ${file.type}\nFileBase64: ${base64}`,
+          },
+        ],
+      },
+    ],
     temperature: 0,
     maxOutputTokens: 1024,
   }

@@ -7,8 +7,13 @@ import { sendNotificationEmail } from '@/lib/notifications/send-email'
 // pantry items that are expiring soon or already expired and creates
 // Notification rows and sends email via Resend when configured.
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const authHeader = request.headers.get('authorization')
+    if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+      return new Response('Unauthorized', { status: 401 })
+    }
+
     const now = new Date()
 
     // Fetch all users

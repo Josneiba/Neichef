@@ -14,8 +14,8 @@ import { Loader2, ArrowRight } from 'lucide-react'
 // Responsive recommendation count: phone/tablet/desktop
 function useRecommendationCount() {
   const [count, setCount] = useState<number>(() => {
-    if (typeof window === 'undefined') return 6
-    return window.matchMedia('(max-width: 640px)').matches ? 10 : window.matchMedia('(min-width: 641px) and (max-width: 1024px)').matches ? 4 : 6
+    if (typeof window === 'undefined') return 12
+    return window.matchMedia('(max-width: 640px)').matches ? 10 : window.matchMedia('(min-width: 641px) and (max-width: 1024px)').matches ? 4 : 12
   })
 
   useEffect(() => {
@@ -27,7 +27,7 @@ function useRecommendationCount() {
     function update() {
       if (mqPhone.matches) setCount(10)
       else if (mqTablet.matches) setCount(4)
-      else if (mqDesktop.matches) setCount(6)
+      else if (mqDesktop.matches) setCount(12)
     }
 
     update()

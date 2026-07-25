@@ -3,7 +3,16 @@
  * This file isolates the provider so a paid/scale-ready service can be swapped
  * in by replacing this single module.
  */
+import { z } from 'zod'
+
 export type DetectedIngredient = { name: string; confidence: number }
+
+const detectedIngredientSchema = z.object({
+  name: z.string().min(1),
+  confidence: z.number().min(0).max(1),
+})
+
+const detectedIngredientsSchema = z.array(detectedIngredientSchema)
 
 export type DetectIngredientsResult =
   | { ok: true; items: DetectedIngredient[] }
@@ -53,6 +62,17 @@ async function callGeminiVision(buffer: Buffer, contentType: string) {
     : null
 
   return text
+}
+
+function parseGeminiDetectedIngredients(text: string) {
+  try {
+    const parsed = JSON.parse(text)
+    const validated = detectedIngredientsSchema.safeParse(parsed)
+    if (!validated.success) return null
+    return validated.data
+  } catch {
+    return null
+  }
 }
 
 async function getGoogleAuthToken() {
@@ -202,24 +222,13 @@ async function runGeminiDetection(buffer: Buffer, contentType: string) {
     return { ok: false, error: 'Gemini ingredient detection failed or returned no text.' }
   }
 
-  try {
-    const parsed = JSON.parse(text)
-    if (!Array.isArray(parsed)) {
-      return { ok: false, error: 'Gemini ingredient detection returned an unexpected format.' }
-    }
-
-    const items = parsed
-      .slice(0, 20)
-      .map((item: any) => ({
-        name: String(item.name ?? item.label ?? '').toLowerCase(),
-        confidence: Number(item.confidence ?? item.score ?? 0),
-      }))
-      .filter((item) => item.name.length > 0)
-
-    return { ok: true, items }
-  } catch {
-    return { ok: false, error: 'Unable to parse Gemini ingredient detection output.' }
+  const parsedItems = parseGeminiDetectedIngredients(text)
+  if (!parsedItems) {
+    return { ok: false, error: 'Unable to parse or validate Gemini ingredient detection output.' }
   }
+
+  const items = parsedItems.slice(0, 20)
+  return { ok: true, items }
 }
 
 export default { detectIngredients }

@@ -15,6 +15,7 @@ const envSchema = z.object({
   GOOGLE_API_KEY: z.string().optional(),
   GOOGLE_GEMINI_MODEL: z.string().optional(),
   GOOGLE_SERVICE_ACCOUNT_KEY: z.string().optional(),
+  CRON_SECRET: z.string().min(1),
   SUPABASE_NUTRITION_BUCKET: z.string().optional(),
 })
 

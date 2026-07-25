@@ -1,5 +1,6 @@
 import { env } from '@/lib/env'
 import { callGeminiWithFile } from '@/lib/ai/gemini'
+import { z } from 'zod'
 
 type NutritionRestrictionDraft = {
   type: 'allergy' | 'avoid' | 'limit' | 'prefer'
@@ -32,6 +33,27 @@ export const supportedFileTypes = new Set([
 ])
 
 export const MAX_PLAN_UPLOAD_BYTES = 10 * 1024 * 1024
+
+const nutritionPlanResponseSchema = z.object({
+  title: z.string().optional(),
+  notes: z.string().optional(),
+  caloriesTarget: z.number().optional(),
+  proteinTargetG: z.number().optional(),
+  carbsTargetG: z.number().optional(),
+  fatTargetG: z.number().optional(),
+  mealsPerDay: z.number().int().optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  restrictions: z.array(
+    z.object({
+      type: z.enum(['allergy', 'avoid', 'limit', 'prefer']),
+      ingredientName: z.string().min(1),
+      note: z.string().optional(),
+    }),
+  ).optional(),
+})
+
+type NutritionPlanResponse = z.infer<typeof nutritionPlanResponseSchema>
 
 function extractTextFromOutput(output: any): string | null {
   if (!output) return null
@@ -72,27 +94,12 @@ function parsePlanDraft(rawText: string, source: 'upload_photo' | 'upload_file')
 
   try {
     const data = JSON.parse(jsonMatch[0])
+    const parsed = nutritionPlanResponseSchema.safeParse(data)
+    if (!parsed.success) return null
 
     return {
       source,
-      title: typeof data.title === 'string' ? data.title : undefined,
-      notes: typeof data.notes === 'string' ? data.notes : undefined,
-      caloriesTarget: typeof data.caloriesTarget === 'number' ? data.caloriesTarget : undefined,
-      proteinTargetG: typeof data.proteinTargetG === 'number' ? data.proteinTargetG : undefined,
-      carbsTargetG: typeof data.carbsTargetG === 'number' ? data.carbsTargetG : undefined,
-      fatTargetG: typeof data.fatTargetG === 'number' ? data.fatTargetG : undefined,
-      mealsPerDay: typeof data.mealsPerDay === 'number' ? data.mealsPerDay : undefined,
-      startDate: typeof data.startDate === 'string' ? data.startDate : undefined,
-      endDate: typeof data.endDate === 'string' ? data.endDate : undefined,
-      restrictions: Array.isArray(data.restrictions)
-        ? data.restrictions
-            .filter((item: any) => item && typeof item.ingredientName === 'string')
-            .map((item: any) => ({
-              type: ['allergy', 'avoid', 'limit', 'prefer'].includes(item.type) ? item.type : 'avoid',
-              ingredientName: String(item.ingredientName),
-              note: typeof item.note === 'string' ? item.note : undefined,
-            }))
-        : undefined,
+      ...parsed.data,
     }
   } catch {
     return null
