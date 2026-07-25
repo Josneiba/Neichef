@@ -74,10 +74,10 @@ function createUpstashLimiter(options: RateLimitOptions) {
 
     return {
       async check(key = 'default'): Promise<RateLimitResult> {
-        const result = await limiter.limit(key)
+        const result = await limiter.limit(key) as { success: boolean; remaining?: number; retryAfter?: number | bigint | null }
         return {
           allowed: result.success,
-          remaining: Math.max(0, result.remaining),
+          remaining: Math.max(0, result.remaining ?? 0),
           resetAt: Date.now() + options.windowMs,
           retryAfterMs: result.success ? 0 : Math.max(0, Number(result.retryAfter ?? 0)),
         }

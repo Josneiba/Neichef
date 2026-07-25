@@ -9,6 +9,7 @@ type RecipeForResponse = {
   id: string
   userId?: string | null
   ingredients?: { name: string }[]
+  steps?: { id?: string; recipeId?: string; step?: number; instruction?: string; durationMinutes?: number | null }[]
   [key: string]: unknown
 }
 
@@ -35,7 +36,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   let recipe: RecipeForResponse | null = null
   try {
     if (id.startsWith('external-')) {
-      recipe = await getRecipeDetail(id.replace('external-', ''))
+      const detail = await getRecipeDetail(id.replace('external-', ''))
+      recipe = detail ? (detail as RecipeForResponse) : null
     } else {
       if (!isDbAvailable()) return NextResponse.json({ error: 'Service unavailable' }, { status: 503 })
       recipe = await prisma.recipe.findFirst({ where: userId ? { id, OR: [{ isPublic: true }, { userId }] } : { id, isPublic: true }, include: { ingredients: true, steps: true } })

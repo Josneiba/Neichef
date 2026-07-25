@@ -3,7 +3,7 @@ import { createRateLimiter } from '@/lib/rate-limit'
 
 describe('createRateLimiter', () => {
   it('blocks requests after the configured limit', async () => {
-    const limiter = createRateLimiter({ windowMs: 60_000, max: 2, keyGenerator: () => 'test-key' })
+    const limiter = createRateLimiter({ windowMs: 60_000, max: 2 })
 
     const first = await limiter.check()
     const second = await limiter.check()

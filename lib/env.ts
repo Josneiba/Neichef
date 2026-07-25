@@ -10,6 +10,9 @@ const envSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
   UPSTASH_REDIS_REST_URL: z.string().optional(),
   UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
+  OPENAI_API_KEY: z.string().optional(),
+  OPENAI_API_MODEL: z.string().optional(),
+  SUPABASE_NUTRITION_BUCKET: z.string().optional(),
 })
 
 export const env = envSchema.parse(process.env)

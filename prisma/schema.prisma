@@ -20,6 +20,8 @@ model User {
   savedRecipes          SavedRecipe[]
   notifications         Notification[]
   budgetLedgerEntries   BudgetLedgerEntry[]
+  nutritionPlans        NutritionPlan[]
+  mealRoutines          MealRoutine[]
 }
 
 model PantryItem {
@@ -61,6 +63,7 @@ model Recipe {
   steps               RecipeStep[]
   savedBy             SavedRecipe[]
   notifications       Notification[]
+  mealSlots           MealSlot[]
 
   @@index([userId])
   @@index([source, externalId])
@@ -128,4 +131,70 @@ model BudgetLedgerEntry {
   pantryItem    PantryItem? @relation(fields: [pantryItemId], references: [id], onDelete: SetNull)
 
   @@index([userId])
+}
+
+model NutritionPlan {
+  id                String                   @id @default(cuid())
+  userId            String
+  source            String                   // "upload_photo" | "upload_file" | "manual"
+  status            String                   @default("active") // "active" | "archived"
+  title             String
+  notes             String?
+  caloriesTarget    Int?
+  proteinTargetG    Float?
+  carbsTargetG      Float?
+  fatTargetG        Float?
+  mealsPerDay       Int?
+  startDate         DateTime?
+  endDate           DateTime?
+  rawFileUrl        String?                  // original upload stored in Supabase Storage
+  rawExtractedText  String?                  // OCR/parsed text for re-parsing
+  extractionStatus  String                   @default("done") // "pending"|"processing"|"done"|"failed"|"needs_review"
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+  user              User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restrictions      NutritionRestriction[]
+  routines          MealRoutine[]
+
+  @@index([userId, status])
+}
+
+model NutritionRestriction {
+  id             String        @id @default(cuid())
+  planId         String
+  type           String        // "allergy" | "avoid" | "limit" | "prefer"
+  ingredientName String
+  note           String?
+  plan           NutritionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([planId])
+}
+
+model MealRoutine {
+  id         String    @id @default(cuid())
+  userId     String
+  planId     String?   // null = user-defined routine, not tied to nutritionist plan
+  name       String    // e.g., "Training day", "Rest day", "Bulking week"
+  daysOfWeek String[]  // ["mon","wed","fri"]
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan       NutritionPlan? @relation(fields: [planId], references: [id], onDelete: SetNull)
+  slots      MealSlot[]
+
+  @@index([userId])
+}
+
+model MealSlot {
+  id             String       @id @default(cuid())
+  routineId      String
+  mealType       String       // "breakfast" | "lunch" | "dinner" | "snack" | "pre_workout" | "post_workout"
+  timeOfDay      String?      // e.g., "07:30"
+  targetCalories Int?
+  recipeId       String?
+  freeText       String?      // e.g., "oats + whey + banana" when not linked to a recipe
+  routine        MealRoutine  @relation(fields: [routineId], references: [id], onDelete: Cascade)
+  recipe         Recipe?      @relation(fields: [recipeId], references: [id], onDelete: SetNull)
+
+  @@index([routineId])
 }

@@ -14,6 +14,7 @@ import {
   Menu,
   X,
   TrendingUp,
+  Apple,
 } from 'lucide-react'
 import { useState } from 'react'
 import type { Notification } from '@/lib/types'
@@ -27,6 +28,7 @@ function getNavItems(t: (key: any) => string) {
     ],
     more: [
       { href: '/app/budget', label: t('budget'), icon: TrendingUp },
+      { href: '/app/nutrition', label: t('myNutrition'), icon: Apple },
       { href: '/app/profile', label: t('profile'), icon: User },
       { href: '/app/search', label: t('search'), icon: Search },
     ],

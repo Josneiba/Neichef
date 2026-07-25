@@ -266,7 +266,8 @@ export async function resolveRecipeId(id: string): Promise<string | null> {
   if (!id.startsWith('external-')) return id
   const mealId = id.replace('external-', '')
   const detail = await getRecipeDetail(mealId)
-  return detail?.id ?? null
+  const resolvedId = detail?.id
+  return typeof resolvedId === 'string' ? resolvedId : null
 }
 
 export async function fetchRandomMeals(count = 8): Promise<ReturnType<typeof normalizeMealToRecipe>[]> {
@@ -373,9 +374,9 @@ export async function searchRecipesByIngredients(ingredients: string[]): Promise
   try {
     if (isDbAvailable()) {
       const cached = await prisma.recipe.findMany({ where: { externalId: { in: topIds }, source: 'external' }, include: { ingredients: true, steps: true } })
-      cachedById = Object.fromEntries(cached.map((c: Record<string, unknown> & { externalId?: string }) => [String(c.externalId), c]))
+      cachedById = Object.fromEntries(cached.map((c) => [String((c as any).externalId), c as Record<string, unknown>]))
       // prime in-memory cache
-      for (const c of cached) inMemoryRecipeCache.set(String(c.externalId), c)
+      for (const c of cached) inMemoryRecipeCache.set(String((c as any).externalId), c as Record<string, unknown>)
     }
   } catch (err: unknown) {
     console.warn('[recipes:external] batch cache lookup failed', err)
@@ -385,8 +386,8 @@ export async function searchRecipesByIngredients(ingredients: string[]): Promise
 
   const results: RecipeSearchResult[] = []
   for (const [id, count] of ranked.slice(0, 24)) {
-    let detail: Record<string, unknown> | null = null
-    if (inMemoryRecipeCache.has(id)) detail = inMemoryRecipeCache.get(id)
+    let detail: Record<string, unknown> | null | undefined = null
+    if (inMemoryRecipeCache.has(id)) detail = inMemoryRecipeCache.get(id) as Record<string, unknown>
     else if (cachedById[id]) detail = cachedById[id]
     else if (nameResults[id]) detail = nameResults[id]
     else {
@@ -394,9 +395,9 @@ export async function searchRecipesByIngredients(ingredients: string[]): Promise
       detail = await getRecipeDetail(id)
     }
 
-    if (detail) {
-      const ingredientsArr = 'ingredients' in detail && Array.isArray(detail.ingredients) ? detail.ingredients : []
-      results.push({ ...detail, pantryMatchCount: count, totalIngredients: ingredientsArr.length })
+    if (detail && typeof (detail as any).id === 'string') {
+      const ingredientsArr = Array.isArray((detail as any).ingredients) ? (detail as any).ingredients : []
+      results.push({ ...(detail as any), pantryMatchCount: count, totalIngredients: ingredientsArr.length })
     }
   }
 
