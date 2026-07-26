@@ -3,6 +3,8 @@ import { z } from 'zod'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { aiRateLimiter, rateLimitHeaders } from '@/lib/rate-limit'
 import { callGeminiWithText, callOpenAIWithText } from '@/lib/ai/gemini'
+import { callGroqWithText } from '@/lib/ai/groq'
+import { resolveProviderSelection } from '@/lib/ai/provider-router'
 
 const schema = z.object({ text: z.string().min(1) })
 const limiter = aiRateLimiter
@@ -48,10 +50,13 @@ export async function POST(request: Request) {
   }
 
   try {
+    const selection = resolveProviderSelection('text-parse')
     let extracted: string
-    if (process.env.GOOGLE_API_KEY || process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
+    if (selection.provider === 'groq') {
+      extracted = await callGroqWithText(parsed.data.text)
+    } else if (selection.provider === 'gemini') {
       extracted = await callGeminiWithText(parsed.data.text, 'manual_entry')
-    } else if (process.env.OPENAI_API_KEY) {
+    } else if (selection.provider === 'openai') {
       extracted = await callOpenAIWithText(parsed.data.text)
     } else {
       return NextResponse.json({ error: 'No AI extraction provider configured.' }, { status: 501 })

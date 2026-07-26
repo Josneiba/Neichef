@@ -113,13 +113,13 @@ async function callHuggingFace(buffer: Buffer, contentType: string, headers: Rec
 }
 
 export async function detectIngredients(image: string): Promise<DetectIngredientsResult> {
-  const hasHf = Boolean(process.env.HF_API_KEY)
   const hasGemini = Boolean(process.env.GOOGLE_API_KEY || process.env.GOOGLE_SERVICE_ACCOUNT_KEY)
+  const hasHf = Boolean(process.env.HF_API_KEY)
 
-  if (!hasHf && !hasGemini) {
+  if (!hasGemini && !hasHf) {
     return {
       ok: false,
-      error: 'Photo detection is not configured yet. Add HF_API_KEY or GOOGLE_API_KEY / GOOGLE_SERVICE_ACCOUNT_KEY to your environment to enable it.',
+      error: 'Photo detection is not configured yet. Add GOOGLE_API_KEY / GOOGLE_SERVICE_ACCOUNT_KEY or HF_API_KEY to your environment to enable it.',
     }
   }
 
@@ -145,20 +145,19 @@ export async function detectIngredients(image: string): Promise<DetectIngredient
     let items: DetectedIngredient[] = []
     let hfError: string | null = null
 
-    if (hasHf) {
-      const hfResult = await runHuggingFaceDetection(buffer, contentType, headers)
-      if (hfResult.ok) items = hfResult.items
-      else hfError = hfResult.error
-    }
-
-    const lowConfidence = items.length > 0 && items.every((item) => item.confidence < 0.65)
-    if ((items.length === 0 || lowConfidence) && hasGemini) {
+    if (hasGemini) {
       const geminiResult = await runGeminiDetection(buffer, contentType)
       if (geminiResult.ok) {
         items = geminiResult.items ?? []
-      } else if (!hasHf) {
-        return { ok: false, error: geminiResult.error ?? 'Unable to parse Gemini response.' }
+      } else {
+        hfError = geminiResult.error
       }
+    }
+
+    if (items.length === 0 && hasHf) {
+      const hfResult = await runHuggingFaceDetection(buffer, contentType, headers)
+      if (hfResult.ok) items = hfResult.items
+      else hfError = hfResult.error
     }
 
     if (items.length === 0) {

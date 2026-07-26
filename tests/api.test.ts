@@ -1,6 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
 import { prisma } from '@/lib/prisma'
 
+const mockGeminiWithText = vi.fn()
+const mockOpenAIWithText = vi.fn()
+
+vi.mock('@/lib/ai/gemini', () => ({
+  callGeminiWithText: mockGeminiWithText,
+  callOpenAIWithText: mockOpenAIWithText,
+}))
+
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     pantryItem: {
@@ -133,6 +141,20 @@ describe('API route protection and pantry logic', () => {
     const payload = await response.json()
     expect(payload.items).toHaveLength(2)
     expect(payload.items.map((item: { name: string }) => item.name)).toEqual(['Eggs', 'Bread'])
+  })
+
+  it('parses manual-entry AI responses into pantry items', async () => {
+    mockGeminiWithText.mockResolvedValueOnce('[{"name":"Milk","quantity":2,"unit":"liters","category":"dairy"}]')
+
+    const { POST } = await import('@/app/api/pantry/manual-entry/route')
+    const response = await POST(new Request('http://localhost', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: 'Buy 2 liters of milk' }),
+    }))
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({ items: [{ name: 'Milk', quantity: 2, unit: 'liters', category: 'dairy' }] })
   })
 
   it('computes pantry urgency based on expiration date', () => {

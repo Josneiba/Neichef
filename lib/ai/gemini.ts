@@ -6,6 +6,69 @@ async function fileToBase64(file: File) {
   return buffer.toString('base64')
 }
 
+function extractTextFromGeminiResponse(json: unknown): string | null {
+  if (!json || typeof json !== 'object') return null
+  const payload = json as Record<string, unknown>
+
+  if (typeof payload.text === 'string') return payload.text
+  if (typeof payload.output === 'string') return payload.output
+
+  if (Array.isArray(payload.output)) {
+    const parts = payload.output
+      .map((item) => {
+        if (typeof item === 'string') return item
+        if (item && typeof item === 'object') {
+          const candidate = item as Record<string, unknown>
+          if (typeof candidate.content === 'string') return candidate.content
+          if (candidate.content && typeof candidate.content === 'object') {
+            const content = candidate.content as Record<string, unknown>
+            if (Array.isArray(content.parts)) {
+              return content.parts.map((part) => {
+                if (part && typeof part === 'object') {
+                  const textPart = part as Record<string, unknown>
+                  return typeof textPart.text === 'string' ? textPart.text : ''
+                }
+                return ''
+              }).join('')
+            }
+            if (typeof content.text === 'string') return content.text
+          }
+        }
+        return ''
+      })
+      .filter(Boolean)
+    if (parts.length > 0) return parts.join('\n')
+  }
+
+  if (Array.isArray(payload.candidates)) {
+    const parts = payload.candidates
+      .map((candidate) => {
+        if (!candidate || typeof candidate !== 'object') return ''
+        const candidateRecord = candidate as Record<string, unknown>
+        if (typeof candidateRecord.content === 'string') return candidateRecord.content
+        if (candidateRecord.content && typeof candidateRecord.content === 'object') {
+          const content = candidateRecord.content as Record<string, unknown>
+          if (Array.isArray(content.parts)) {
+            return content.parts.map((part) => {
+              if (part && typeof part === 'object') {
+                const textPart = part as Record<string, unknown>
+                return typeof textPart.text === 'string' ? textPart.text : ''
+              }
+              return ''
+            }).join('')
+          }
+          if (typeof content.text === 'string') return content.text
+        }
+        return ''
+      })
+      .filter(Boolean)
+
+    if (parts.length > 0) return parts.join('\n')
+  }
+
+  return null
+}
+
 function parseServiceAccountKey(raw: string) {
   if (raw.trim().startsWith('{')) {
     return JSON.parse(raw)
@@ -27,8 +90,12 @@ async function getGoogleAccessToken() {
   return typeof token === 'string' ? token : token?.token ?? null
 }
 
+function getGeminiModel() {
+  return env.GOOGLE_GEMINI_MODEL ?? 'gemini-2.0-flash-exp'
+}
+
 export async function callGeminiWithFile(file: File, source: 'upload_photo' | 'upload_file') {
-  const model = env.GOOGLE_GEMINI_MODEL ?? 'gemini-2.5-flash'
+  const model = getGeminiModel()
   const accessToken = await getGoogleAccessToken()
 
   if (!accessToken && !env.GOOGLE_API_KEY) {
@@ -55,8 +122,10 @@ export async function callGeminiWithFile(file: File, source: 'upload_photo' | 'u
         ],
       },
     ],
-    temperature: 0,
-    maxOutputTokens: 1024,
+    generationConfig: {
+      temperature: 0,
+      maxOutputTokens: 1024,
+    },
   }
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`
@@ -83,13 +152,8 @@ export async function callGeminiWithFile(file: File, source: 'upload_photo' | 'u
   }
 
   const json = await res.json()
-
-  // Attempt to extract text from known response shapes.
-  // Prefer top-level output if present, else fallback to choices/messages.
-  if (typeof json.output === 'string') return json.output
-  if (Array.isArray(json.output)) return json.output.map((o: any) => (o?.content ?? o)).join(' ')
-  if (Array.isArray(json.candidates)) return json.candidates.map((c: any) => c.content).join(' ')
-  if (typeof json.text === 'string') return json.text
+  const extracted = extractTextFromGeminiResponse(json)
+  if (extracted) return extracted
 
   return JSON.stringify(json)
 }
@@ -154,7 +218,7 @@ export async function callOpenAIWithText(text: string): Promise<string> {
 }
 
 export async function callGeminiWithText(text: string, source: 'manual_entry' | 'receipt_text') {
-  const model = env.GOOGLE_GEMINI_MODEL ?? 'gemini-2.5-flash'
+  const model = getGeminiModel()
   const accessToken = await getGoogleAccessToken()
 
   if (!accessToken && !env.GOOGLE_API_KEY) {
@@ -176,8 +240,10 @@ export async function callGeminiWithText(text: string, source: 'manual_entry' | 
         ],
       },
     ],
-    temperature: 0,
-    maxOutputTokens: 512,
+    generationConfig: {
+      temperature: 0,
+      maxOutputTokens: 512,
+    },
   }
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`
@@ -204,11 +270,8 @@ export async function callGeminiWithText(text: string, source: 'manual_entry' | 
   }
 
   const json = await res.json()
-
-  if (typeof json.output === 'string') return json.output
-  if (Array.isArray(json.output)) return json.output.map((o: any) => (o?.content ?? o)).join(' ')
-  if (Array.isArray(json.candidates)) return json.candidates.map((c: any) => c.content).join(' ')
-  if (typeof json.text === 'string') return json.text
+  const extracted = extractTextFromGeminiResponse(json)
+  if (extracted) return extracted
 
   return JSON.stringify(json)
 }
