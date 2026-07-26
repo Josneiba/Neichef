@@ -19,6 +19,8 @@ export interface RecipeIngredient {
 export interface Recipe {
   id: string
   title: string
+  description?: string
+  imageUrl?: string
   ingredients: RecipeIngredient[]
   prepTimeMinutes?: number
   cookTimeMinutes?: number
