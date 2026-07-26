@@ -35,6 +35,7 @@ export function RecipeFinderModal({ initialMode, onClose }: RecipeFinderModalPro
   const [flavor, setFlavor] = useState<Flavor>('any')
   const [mealType, setMealType] = useState<MealType>('any')
   const [maxTime, setMaxTime] = useState('45')
+  const [searchMode, setSearchMode] = useState<'ingredients' | 'recipes'>('ingredients')
   const [matchMode, setMatchMode] = useState<MatchMode>('flexible')
   const [isDetecting, setIsDetecting] = useState(false)
   const [error, setError] = useState('')
@@ -77,8 +78,9 @@ export function RecipeFinderModal({ initialMode, onClose }: RecipeFinderModalPro
       return
     }
     const params = new URLSearchParams({
-      ingredients: ingredients.join(', '),
+      ingredients: ingredientText,
       matchMode,
+      searchMode,
       flavor,
       mealType,
     })
@@ -116,6 +118,22 @@ export function RecipeFinderModal({ initialMode, onClose }: RecipeFinderModalPro
               className={`rounded-md border px-3 py-2 text-sm font-medium ${mode === 'ingredients' ? 'border-primary bg-primary text-primary-foreground' : 'border-border text-foreground hover:bg-muted'}`}
             >
               {t('addIngredients')}
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setSearchMode('ingredients')}
+              className={`rounded-md border px-3 py-2 text-sm font-medium ${searchMode === 'ingredients' ? 'border-primary bg-primary text-primary-foreground' : 'border-border text-foreground hover:bg-muted'}`}
+            >
+              By ingredients
+            </button>
+            <button
+              type="button"
+              onClick={() => setSearchMode('recipes')}
+              className={`rounded-md border px-3 py-2 text-sm font-medium ${searchMode === 'recipes' ? 'border-primary bg-primary text-primary-foreground' : 'border-border text-foreground hover:bg-muted'}`}
+            >
+              Recipes
             </button>
           </div>
 
@@ -179,13 +197,15 @@ export function RecipeFinderModal({ initialMode, onClose }: RecipeFinderModalPro
                 <option value="60">Under 60 min</option>
               </select>
             </label>
-            <label className="block">
-              <span className="mb-1.5 block text-xs font-medium text-foreground">{t('matchLabel')}</span>
-              <select value={matchMode} onChange={(event) => setMatchMode(event.target.value as MatchMode)} className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm">
-                <option value="flexible">{t('canIncludeExtrasOption')}</option>
-                <option value="exact">{t('exactMainIngredientsOption')}</option>
-              </select>
-            </label>
+            {searchMode === 'ingredients' ? (
+              <label className="block">
+                <span className="mb-1.5 block text-xs font-medium text-foreground">{t('matchLabel')}</span>
+                <select value={matchMode} onChange={(event) => setMatchMode(event.target.value as MatchMode)} className="w-full rounded-md border border-border bg-background px-3 py-2.5 text-sm">
+                  <option value="flexible">{t('canIncludeExtrasOption')}</option>
+                  <option value="exact">{t('exactMainIngredientsOption')}</option>
+                </select>
+              </label>
+            ) : null}
           </div>
 
           {error && (

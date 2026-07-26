@@ -13,6 +13,7 @@ const querySchema = z.object({
   costLevel: z.string().optional(),
   ingredients: z.string().optional(),
   matchMode: z.enum(['flexible', 'exact']).optional(),
+  searchMode: z.enum(['ingredients', 'recipes']).optional(),
   flavor: z.enum(['any', 'sweet', 'savory']).optional(),
   mealType: z.enum(['any', 'breakfast', 'lunch', 'dinner', 'snack', 'dessert']).optional(),
 })
@@ -92,14 +93,19 @@ export async function GET(request: Request) {
     const maxTime = parsed.success && parsed.data.maxTimeMinutes ? Number(parsed.data.maxTimeMinutes) : undefined
     const difficulty = parsed.success ? parsed.data.difficulty : undefined
     const costLevel = parsed.success ? parsed.data.costLevel : undefined
-    const requestedIngredients = parsed.success ? parseIngredientQuery(parsed.data.ingredients) : []
+    const searchMode = parsed.success ? parsed.data.searchMode ?? 'ingredients' : 'ingredients'
+    const requestedIngredients = parsed.success && searchMode === 'ingredients'
+      ? parseIngredientQuery(parsed.data.ingredients)
+      : []
     const matchMode = parsed.success ? parsed.data.matchMode ?? 'flexible' : 'flexible'
     const flavor = parsed.success ? parsed.data.flavor ?? 'any' : 'any'
     const mealType = parsed.success ? parsed.data.mealType ?? 'any' : 'any'
     const freeText = parsed.success && parsed.data.ingredients ? normalizeFoodName(parsed.data.ingredients) : ''
-    const queryTerms = requestedIngredients.length > 0
-      ? requestedIngredients
-      : freeText.split(/\s+/).filter(Boolean).slice(0, 8)
+    const queryTerms = searchMode === 'recipes'
+      ? freeText.split(/\s+/).filter(Boolean).slice(0, 8)
+      : requestedIngredients.length > 0
+        ? requestedIngredients
+        : freeText.split(/\s+/).filter(Boolean).slice(0, 8)
 
     // Try to get user ID, but don't fail if user is not authenticated
     let userId: string | null = null
@@ -148,11 +154,14 @@ export async function GET(request: Request) {
     const pantryNames = requestedIngredients.length > 0 ? requestedIngredients : pantry.map((p) => p.name)
     const pantryForMatching: PantryItem[] = requestedIngredients.length > 0
       ? requestedIngredients.map((name) => ({ id: name, name, quantity: 1, unit: 'pcs', expiresAt: new Date('2999-12-31') }))
-      : pantry
+      : searchMode === 'recipes'
+        ? []
+        : pantry
 
     console.info('[recipes:suggestions] building suggestions', {
       userId,
-      source: requestedIngredients.length > 0 ? 'manual-ingredients' : 'pantry',
+      source: searchMode === 'recipes' ? 'recipe-search' : requestedIngredients.length > 0 ? 'manual-ingredients' : 'pantry',
+      searchMode,
       ingredientCount: pantryNames.length,
       queryTerms,
       matchMode,
@@ -174,6 +183,8 @@ export async function GET(request: Request) {
         recipes.push(...dbRecipes.map((r) => ({
           id: r.id,
           title: r.title,
+          description: r.description,
+          imageUrl: r.imageUrl ?? undefined,
           ingredients: r.ingredients.map((ingredient) => ({
             id: ingredient.id,
             name: ingredient.name,
@@ -199,7 +210,7 @@ export async function GET(request: Request) {
     try {
       const searchQuery = queryTerms.length > 0 ? queryTerms : pantryNames.filter(Boolean)
       const externalRecipes = searchQuery.length > 0
-        ? await searchRecipesByIngredients(searchQuery)
+        ? await searchRecipesByIngredients(searchQuery, searchMode)
         : await fetchRandomMeals(20)
 
       recipes.push(...externalRecipes.map((recipe) => {
@@ -222,6 +233,7 @@ export async function GET(request: Request) {
         return {
           id: recipe.id,
           title: recipe.title ?? 'Untitled recipe',
+          imageUrl: String(recipe.imageUrl ?? '' ) || undefined,
           ingredients,
           prepTimeMinutes: recipe.prepTimeMinutes,
           cookTimeMinutes: recipe.cookTimeMinutes,
@@ -233,11 +245,20 @@ export async function GET(request: Request) {
       console.error('[recipes:suggestions] external search failed', err)
     }
 
-    const scoredSuggestions = filterAndScoreRecipes(pantryForMatching, recipes, {
-      minMatchPercentage: 0.35,
-      maxMissingRequired: 4,
-      boostExpiringDays: 3,
-    })
+    const scoredSuggestions = searchMode === 'recipes'
+      ? recipes.map((recipe) => ({
+        recipe,
+        matchPercentage: 1,
+        score: 100,
+        matchedIngredients: [],
+        missingIngredients: [],
+        expiringItemsUsedCount: 0,
+      }))
+      : filterAndScoreRecipes(pantryForMatching, recipes, {
+        minMatchPercentage: 0.35,
+        maxMissingRequired: 4,
+        boostExpiringDays: 3,
+      })
 
     const result = scoredSuggestions
       .filter((candidate) => {
@@ -253,6 +274,8 @@ export async function GET(request: Request) {
       .map((candidate) => ({
         id: candidate.recipe.id,
         title: candidate.recipe.title,
+        description: candidate.recipe.description,
+        imageUrl: candidate.recipe.imageUrl,
         ingredients: candidate.recipe.ingredients,
         prepTimeMinutes: candidate.recipe.prepTimeMinutes,
         cookTimeMinutes: candidate.recipe.cookTimeMinutes,

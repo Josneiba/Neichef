@@ -8,7 +8,7 @@ import { X, Camera, ScanBarcode, FileText, Pencil, Check, Loader2, AlertCircle, 
 import { cn } from '@/lib/utils'
 import type { Category, StorageLocation } from '@/lib/types'
 
-type AddMode = 'manual' | 'photo' | 'barcode' | 'receipt'
+type AddMode = 'manual' | 'manual_text' | 'photo' | 'barcode' | 'receipt'
 
 interface AddItemModalProps {
   onClose: () => void
@@ -103,7 +103,7 @@ function ReviewList({ items, onChange }: { items: ReviewItem[]; onChange: (items
             <button
               type="button"
               onClick={() => update(item.id, { confirmed: !item.confirmed })}
-              className={cn('w-5 h-5 mt-0.5 rounded border flex items-center justify-center flex-shrink-0', item.confirmed ? 'bg-primary border-primary' : 'border-border')}
+              className={cn('w-5 h-5 mt-0.5 rounded border flex items-center justify-center shrink-0', item.confirmed ? 'bg-primary border-primary' : 'border-border')}
               aria-label={item.confirmed ? t('excludeItem') : t('includeItem')}
             >
               {item.confirmed && <Check className="w-3 h-3 text-primary-foreground" strokeWidth={2.5} />}
@@ -137,7 +137,7 @@ function ReviewList({ items, onChange }: { items: ReviewItem[]; onChange: (items
                 {categoryOptions.map((c) => <option key={c} value={c} className="capitalize">{c}</option>)}
               </select>
             </div>
-            <button type="button" onClick={() => remove(item.id)} className="text-muted-foreground hover:text-destructive flex-shrink-0" aria-label="Remove item">
+            <button type="button" onClick={() => remove(item.id)} className="text-muted-foreground hover:text-destructive shrink-0" aria-label="Remove item">
               <Trash2 className="w-4 h-4" strokeWidth={1.5} />
             </button>
           </div>
@@ -166,11 +166,83 @@ export function AddItemModal({ onClose, initialMode = 'manual' }: AddItemModalPr
   const [location, setLocation] = useState<StorageLocation>('fridge')
   const [expiry, setExpiry] = useState('')
 
+  const [manualText, setManualText] = useState('')
+  const [textReviewStep, setTextReviewStep] = useState<'edit' | 'review'>('edit')
+  const [parsedTextItems, setParsedTextItems] = useState<ReviewItem[]>([])
+  const [isParsingText, setIsParsingText] = useState(false)
+  const [manualTextError, setManualTextError] = useState('')
+
   function handleManualSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!name || !quantity || !expiry) return
     addItem({ name, quantity: Number(quantity), unit, category, location, expirationDate: expiry })
     onClose()
+  }
+
+  async function handleParseManualText() {
+    if (!manualText.trim()) return
+    setManualTextError('')
+    setIsParsingText(true)
+    setParsedTextItems([])
+
+    try {
+      const res = await fetch('/api/pantry/manual-entry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ text: manualText }),
+      })
+
+      const payload = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(payload.error ?? 'Could not parse the entered text.')
+      }
+
+      const items = Array.isArray(payload.items) ? payload.items : []
+      if (items.length === 0) {
+        throw new Error('No pantry items were detected in that text.')
+      }
+
+      setParsedTextItems(
+        items.map((item: any) => {
+          const rawName = String(item.name ?? '').trim()
+          const rawCategory = String(item.category ?? '').toLowerCase()
+          const categoryValue = (categoryOptions as string[]).includes(rawCategory)
+            ? (rawCategory as Category)
+            : guessCategory(rawName)
+
+          return newReviewItem({
+            name: rawName,
+            quantity: Number(item.quantity ?? 1),
+            unit: String(item.unit ?? 'pcs'),
+            category: categoryValue,
+            confirmed: true,
+          })
+        }),
+      )
+      setTextReviewStep('review')
+    } catch (err) {
+      setManualTextError(err instanceof Error ? err.message : 'Could not parse the entered text.')
+    } finally {
+      setIsParsingText(false)
+    }
+  }
+
+  function handleTextConfirm() {
+    const expirationDate = defaultExpiryDate(14)
+    parsedTextItems
+      .filter((i) => i.confirmed && i.name.trim())
+      .forEach((item) => {
+        addItem({ name: item.name.trim(), quantity: item.quantity, unit: item.unit, category: item.category, location: 'pantry', expirationDate })
+      })
+    onClose()
+  }
+
+  function resetManualText() {
+    setManualText('')
+    setParsedTextItems([])
+    setTextReviewStep('edit')
+    setManualTextError('')
   }
 
   // ---- Photo mode ----
@@ -438,6 +510,7 @@ export function AddItemModal({ onClose, initialMode = 'manual' }: AddItemModalPr
 
   const modes: { id: AddMode; label: string; icon: React.ComponentType<{ className?: string; strokeWidth?: number }> }[] = [
     { id: 'manual', label: 'Manual entry', icon: Pencil },
+    { id: 'manual_text', label: 'Type a list', icon: FileText },
     { id: 'photo', label: 'Take a photo', icon: Camera },
     { id: 'barcode', label: 'Scan barcode', icon: ScanBarcode },
     { id: 'receipt', label: 'Upload receipt', icon: FileText },
@@ -548,6 +621,63 @@ export function AddItemModal({ onClose, initialMode = 'manual' }: AddItemModalPr
             </form>
           )}
 
+          {/* Manual text parsing mode */}
+          {mode === 'manual_text' && (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-foreground mb-1.5">Type or paste pantry items <span className="text-destructive">*</span></label>
+                <textarea
+                  value={manualText}
+                  onChange={(e) => setManualText(e.target.value)}
+                  rows={8}
+                  placeholder="e.g. 2 cans of chickpeas\n1 bag of baby spinach\n3 carrots"
+                  className="w-full px-3 py-2.5 text-sm border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+              </div>
+              {manualTextError && (
+                <div className="rounded-lg border border-destructive/40 bg-[oklch(0.07_0.37_38)] p-3 text-xs text-destructive">
+                  {manualTextError}
+                </div>
+              )}
+              {textReviewStep === 'edit' ? (
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground">NeiChef will parse your text into pantry items for review. You can edit any item before adding it.</p>
+                  <button
+                    type="button"
+                    disabled={isParsingText || !manualText.trim()}
+                    onClick={handleParseManualText}
+                    className="w-full bg-primary text-primary-foreground py-3 rounded-md text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+                  >
+                    {isParsingText ? 'Parsing…' : 'Parse list'}
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Review parsed items</p>
+                      <p className="text-xs text-muted-foreground">Adjust any quantity, unit, or category before adding.</p>
+                    </div>
+                    <button type="button" onClick={resetManualText} className="text-xs text-muted-foreground hover:text-foreground">
+                      Edit text
+                    </button>
+                  </div>
+                  <div className="mb-5">
+                    <ReviewList items={parsedTextItems} onChange={setParsedTextItems} />
+                  </div>
+                  <button
+                    type="button"
+                    disabled={parsedTextItems.filter((i) => i.confirmed && i.name.trim()).length === 0}
+                    onClick={handleTextConfirm}
+                    className="w-full bg-primary text-primary-foreground py-3 rounded-md text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+                  >
+                    Add {parsedTextItems.filter((i) => i.confirmed && i.name.trim()).length} items
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Photo mode */}
           {mode === 'photo' && (
             <div>
@@ -585,7 +715,7 @@ export function AddItemModal({ onClose, initialMode = 'manual' }: AddItemModalPr
                   )}
                   {photoError && (
                     <div className="flex items-start gap-2 mb-4 p-3 rounded-lg border border-[oklch(0.84_0.09_70)] bg-[oklch(0.97_0.03_75)] text-xs text-[oklch(0.42_0.10_55)]">
-                      <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" strokeWidth={1.5} />
+                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" strokeWidth={1.5} />
                       <span>{photoError}</span>
                     </div>
                   )}
@@ -658,7 +788,7 @@ export function AddItemModal({ onClose, initialMode = 'manual' }: AddItemModalPr
 
                 {barcodeError && (
                   <div className="flex items-start gap-2 mb-4 p-3 rounded-lg border border-[oklch(0.84_0.09_70)] bg-[oklch(0.97_0.03_75)] text-xs text-[oklch(0.42_0.10_55)] text-left">
-                    <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" strokeWidth={1.5} />
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" strokeWidth={1.5} />
                     <span>{barcodeError}</span>
                   </div>
                 )}
@@ -708,7 +838,7 @@ export function AddItemModal({ onClose, initialMode = 'manual' }: AddItemModalPr
                   </div>
                   {receiptError && (
                     <div className="flex items-start gap-2 mb-4 p-3 rounded-lg border border-[oklch(0.84_0.09_70)] bg-[oklch(0.97_0.03_75)] text-xs text-[oklch(0.42_0.10_55)] text-left">
-                      <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" strokeWidth={1.5} />
+                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" strokeWidth={1.5} />
                       <span>{receiptError}</span>
                     </div>
                   )}
@@ -726,7 +856,7 @@ export function AddItemModal({ onClose, initialMode = 'manual' }: AddItemModalPr
                 <div>
                   {receiptNote && (
                     <div className="flex items-start gap-2 mb-4 p-3 rounded-lg border border-border bg-muted text-xs text-muted-foreground text-left">
-                      <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" strokeWidth={1.5} />
+                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" strokeWidth={1.5} />
                       <span>{receiptNote}</span>
                     </div>
                   )}

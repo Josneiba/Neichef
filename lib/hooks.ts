@@ -85,7 +85,9 @@ export function useRecipes() {
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set())
 
   const loadSuggestions = useCallback(async (options?: {
+    query?: string
     ingredients?: string[]
+    searchMode?: 'ingredients' | 'recipes'
     matchMode?: 'flexible' | 'exact'
     maxTimeMinutes?: string
     flavor?: 'any' | 'sweet' | 'savory'
@@ -95,6 +97,8 @@ export function useRecipes() {
     setSuggestionError(null)
     const params = new URLSearchParams()
     if (options?.ingredients?.length) params.set('ingredients', options.ingredients.join(','))
+    else if (options?.query) params.set('ingredients', options.query)
+    if (options?.searchMode) params.set('searchMode', options.searchMode)
     if (options?.matchMode) params.set('matchMode', options.matchMode)
     if (options?.maxTimeMinutes && options.maxTimeMinutes !== 'any') params.set('maxTimeMinutes', options.maxTimeMinutes)
     if (options?.flavor) params.set('flavor', options.flavor)
@@ -182,10 +186,15 @@ export function useRecipes() {
     })
 
   const findRecipesByIngredients = useCallback((
-    ingredients: string[],
+    ingredients: string | string[],
     matchMode: 'flexible' | 'exact',
-    options?: { maxTimeMinutes?: string; flavor?: 'any' | 'sweet' | 'savory'; mealType?: 'any' | 'breakfast' | 'lunch' | 'dinner' | 'snack' | 'dessert' },
-  ) => loadSuggestions({ ingredients, matchMode, ...options }), [loadSuggestions])
+    options?: { maxTimeMinutes?: string; flavor?: 'any' | 'sweet' | 'savory'; mealType?: 'any' | 'breakfast' | 'lunch' | 'dinner' | 'snack' | 'dessert'; searchMode?: 'ingredients' | 'recipes' },
+  ) => {
+    if (Array.isArray(ingredients)) {
+      return loadSuggestions({ ingredients, matchMode, ...options })
+    }
+    return loadSuggestions({ query: ingredients, matchMode, ...options })
+  }, [loadSuggestions])
   const usePantrySuggestions = useCallback(() => loadSuggestions(), [loadSuggestions])
 
   return { recipes, suggestedRecipes, savedRecipes, toggleSave, addCustomRecipe, findRecipesByIngredients, usePantrySuggestions, isLoadingSuggestions, isLoadingRecipes, suggestionError }

@@ -109,6 +109,7 @@ function RecipesContent() {
   const [maxTime, setMaxTime] = useState<number | 'any'>('any')
   const [ingredientText, setIngredientText] = useState('')
   const [matchMode, setMatchMode] = useState<'flexible' | 'exact'>('flexible')
+  const [searchMode, setSearchMode] = useState<'ingredients' | 'recipes'>('ingredients')
   const [fallbackRecipes, setFallbackRecipes] = useState<Recipe[] | null>(null)
   const [fallbackKey, setFallbackKey] = useState<string>('')
   const [currentPage, setCurrentPage] = useState(1)
@@ -122,13 +123,16 @@ function RecipesContent() {
     const parsedIngredients = parseIngredientList(ingredients)
     if (urlMaxTime) setMaxTime(urlMaxTime === 'any' ? 'any' : Number(urlMaxTime))
     setIngredientText(ingredients)
+    const searchModeParam = searchParams.get('searchMode') === 'recipes' ? 'recipes' : 'ingredients'
+    setSearchMode(searchModeParam)
     setMatchMode(searchParams.get('matchMode') === 'exact' ? 'exact' : 'flexible')
     setTab('suggested')
     setCurrentPage(1)
     void findRecipesByIngredients(
-      parsedIngredients,
-      searchParams.get('matchMode') === 'exact' ? 'exact' : 'flexible',
+      ingredients,
+      matchMode,
       {
+        searchMode: searchModeParam,
         maxTimeMinutes: urlMaxTime ?? undefined,
         flavor: flavor === 'sweet' || flavor === 'savory' || flavor === 'any' ? flavor : undefined,
         mealType: mealType === 'breakfast' || mealType === 'lunch' || mealType === 'dinner' || mealType === 'snack' || mealType === 'dessert' || mealType === 'any' ? mealType : undefined,
@@ -204,11 +208,15 @@ function RecipesContent() {
     const ingredients = parseIngredientList(ingredientText)
     setTab('suggested')
     setCurrentPage(1)
+    if (searchMode === 'recipes') {
+      void findRecipesByIngredients(ingredientText, matchMode, { searchMode })
+      return
+    }
     if (ingredients.length === 0) {
       void usePantrySuggestions()
       return
     }
-    void findRecipesByIngredients(ingredients, matchMode)
+    void findRecipesByIngredients(ingredientText, matchMode, { searchMode })
   }
 
   return (
@@ -235,18 +243,46 @@ function RecipesContent() {
             <input
               value={ingredientText}
               onChange={(event) => setIngredientText(event.target.value)}
-              placeholder="Chicken, tomato, rice..."
+              placeholder={searchMode === 'recipes' ? 'Search recipes: pasta, cookies...' : 'Chicken, tomato, rice...'}
               className="w-full pl-9 pr-3 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
             />
           </div>
-          <select
-            value={matchMode}
-            onChange={(event) => setMatchMode(event.target.value as 'flexible' | 'exact')}
-            className="px-3 py-2.5 text-sm border border-border rounded-md bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-          >
-            <option value="flexible">Can include extras</option>
-            <option value="exact">Exact main ingredients</option>
-          </select>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setSearchMode('ingredients')}
+              className={cn(
+                'px-3 py-2 rounded-md text-sm font-medium border transition-colors',
+                searchMode === 'ingredients'
+                  ? 'border-primary bg-primary text-primary-foreground'
+                  : 'border-border text-foreground hover:bg-muted',
+              )}
+            >
+              By ingredients
+            </button>
+            <button
+              type="button"
+              onClick={() => setSearchMode('recipes')}
+              className={cn(
+                'px-3 py-2 rounded-md text-sm font-medium border transition-colors',
+                searchMode === 'recipes'
+                  ? 'border-primary bg-primary text-primary-foreground'
+                  : 'border-border text-foreground hover:bg-muted',
+              )}
+            >
+              Recipes
+            </button>
+          </div>
+          {searchMode === 'ingredients' && (
+            <select
+              value={matchMode}
+              onChange={(event) => setMatchMode(event.target.value as 'flexible' | 'exact')}
+              className="px-3 py-2.5 text-sm border border-border rounded-md bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            >
+              <option value="flexible">Can include extras</option>
+              <option value="exact">Exact main ingredients</option>
+            </select>
+          )}
           <button
             type="submit"
             disabled={isLoadingSuggestions}

@@ -42,9 +42,6 @@ function getPrismaClient() {
     }
 
     try {
-      if (process.env.PGSSLMODE === 'no-verify') {
-        process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
-      }
       const adapter = new PrismaPg({ connectionString: makeDatabaseUrl(env.DATABASE_URL) })
 
       globalForPrisma.prisma = new PrismaClient({

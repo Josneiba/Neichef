@@ -179,7 +179,7 @@ export async function getRecipeDetail(externalId: string) {
         return cached
       }
     }
-    } catch (err: unknown) {
+  } catch (err: unknown) {
     console.warn('[recipes:external] cache lookup failed; fetching from TheMealDB only', { externalId, err })
     const msg = err instanceof Error ? err.message : String(err)
     if (msg.includes('ECIRCUITBREAKER') || msg.includes('self-signed certificate') || msg.includes('TlsConnectionError') || msg.includes('too many authentication')) {
@@ -293,32 +293,71 @@ export async function fetchRandomMeals(count = 8): Promise<ReturnType<typeof nor
   return results
 }
 
-export async function searchRecipesByIngredients(ingredients: string[]): Promise<RecipeSearchResult[]> {
+export async function searchRecipesByIngredients(
+  ingredients: string[],
+  searchMode: 'ingredients' | 'recipes' = 'ingredients',
+): Promise<RecipeSearchResult[]> {
   if (!ingredients || ingredients.length === 0) return []
 
   const idCounts: Record<string, number> = {}
   const nameResults: Record<string, ReturnType<typeof normalizeMealToRecipe>> = {}
   const seenIds = new Set<string>()
 
-  // If the user provided a single free-text term that looks like a dish
-  // name (e.g. "pasta", "cookies"), try TheMealDB search by name to
-  // surface matching dishes in addition to ingredient-based results.
-  if (ingredients.length === 1) {
-    const q = ingredients[0].trim()
-    if (q.length >= 3 && q.length <= 60 && /^[a-zA-Z\s]+$/.test(q)) {
+  const queryText = ingredients.join(' ').trim()
+  const shouldTryNameSearch = searchMode === 'recipes' && queryText.length >= 3 && queryText.length <= 60 && /^[a-zA-Z\s]+$/.test(queryText)
+  if (shouldTryNameSearch) {
+    const nameSearchQueries = new Set<string>()
+    nameSearchQueries.add(queryText)
+    for (const term of queryText.split(/\s+/).filter((term) => term.length >= 3)) {
+      nameSearchQueries.add(term)
+    }
+
+    const normalizedQuery = normalizeFoodName(queryText)
+    const queryTokens = normalizedQuery.split(' ').filter(Boolean)
+    const recipeCategoryKeywords: Record<string, string[]> = {
+      Pasta: ['pasta', 'spaghetti', 'lasagna', 'penne', 'macaroni', 'ravioli', 'fettuccine', 'farfalle', 'linguine'],
+      Beef: ['beef', 'steak', 'roast', 'brisket'],
+      Chicken: ['chicken'],
+      Seafood: ['seafood', 'fish', 'shrimp', 'prawn', 'salmon', 'tuna', 'crab', 'lobster'],
+      Dessert: ['dessert', 'cake', 'cookie', 'pie', 'brownie', 'tart', 'pudding'],
+      Breakfast: ['breakfast', 'brunch', 'omelette', 'pancake', 'waffle', 'cereal'],
+      Side: ['side', 'salad', 'sandwich', 'fries', 'chips'],
+      Starter: ['starter', 'appetizer', 'dip', 'finger food'],
+    }
+
+    for (const [category, keywords] of Object.entries(recipeCategoryKeywords)) {
+      if (!keywords.some((keyword) => queryTokens.includes(keyword))) continue
+
       try {
-        const res = await fetch(`https://www.themealdb.com/api/json/v1/1/search.php?s=${encodeURIComponent(q)}`)
-        if (res.ok) {
-          const data = await res.json()
-          const meals: MealDbMeal[] = Array.isArray(data?.meals) ? data.meals : []
-          for (const m of meals) {
-            const mealId = textField(m.idMeal)
-            if (!mealId) continue
-            const normalized = normalizeMealToRecipe(m)
-            nameResults[mealId] = normalized
-            // give a boost so name-matches rank highly
-            idCounts[mealId] = (idCounts[mealId] || 0) + 10
-          }
+        const res = await fetch(`https://www.themealdb.com/api/json/v1/1/filter.php?c=${encodeURIComponent(category)}`)
+        if (!res.ok) continue
+        const data = await res.json()
+        const categoryMeals: MealDbMeal[] = Array.isArray(data?.meals) ? data.meals : []
+        for (const meal of categoryMeals) {
+          const mealId = textField(meal.idMeal)
+          if (!mealId || nameResults[mealId]) continue
+          const normalized = normalizeMealToRecipe(meal)
+          nameResults[mealId] = normalized
+          idCounts[mealId] = (idCounts[mealId] || 0) + 5
+        }
+      } catch {
+        // ignore category fetch failures
+      }
+    }
+
+    for (const searchQuery of nameSearchQueries) {
+      try {
+        const res = await fetch(`https://www.themealdb.com/api/json/v1/1/search.php?s=${encodeURIComponent(searchQuery)}`)
+        if (!res.ok) continue
+        const data = await res.json()
+        const meals: MealDbMeal[] = Array.isArray(data?.meals) ? data.meals : []
+        for (const m of meals) {
+          const mealId = textField(m.idMeal)
+          if (!mealId) continue
+          if (nameResults[mealId]) continue
+          const normalized = normalizeMealToRecipe(m)
+          nameResults[mealId] = normalized
+          idCounts[mealId] = (idCounts[mealId] || 0) + 10
         }
       } catch {
         // ignore name-search failures
@@ -326,40 +365,34 @@ export async function searchRecipesByIngredients(ingredients: string[]): Promise
     }
   }
 
-  for (const ing of ingredients.slice(0, 8)) {
-    const terms = ingredientSearchTerms(ing)
-    let foundMeals: MealDbMeal[] = []
+  const shouldSearchByIngredients = searchMode === 'ingredients' || searchMode === 'recipes' || Object.keys(nameResults).length === 0
+  if (shouldSearchByIngredients) {
+    const ingredientFilterTerms = new Set<string>()
+    for (const ing of ingredients.slice(0, 8)) {
+      for (const term of ingredientSearchTerms(ing)) {
+        ingredientFilterTerms.add(term)
+      }
+      for (const word of normalizeFoodName(ing).split(' ').filter(Boolean)) {
+        ingredientFilterTerms.add(word)
+      }
+    }
 
-    for (const term of terms) {
+    for (const term of ingredientFilterTerms) {
+      let foundMeals: MealDbMeal[] = []
       try {
         const res = await fetch(`https://www.themealdb.com/api/json/v1/1/filter.php?i=${encodeURIComponent(term)}`)
         const data = await res.json()
         foundMeals = Array.isArray(data?.meals) ? data.meals : []
-        if (foundMeals.length > 0) break
       } catch {
         // ignore individual failures
       }
-    }
 
-    if (foundMeals.length === 0) {
-      const fallbackWords = normalizeFoodName(ing).split(' ').filter(Boolean)
-      for (const word of fallbackWords) {
-        try {
-          const res = await fetch(`https://www.themealdb.com/api/json/v1/1/filter.php?i=${encodeURIComponent(word)}`)
-          const data = await res.json()
-          foundMeals = Array.isArray(data?.meals) ? data.meals : []
-          if (foundMeals.length > 0) break
-        } catch {
-          // ignore individual failures
+      for (const m of foundMeals) {
+        const mealId = textField((m as MealDbMeal).idMeal)
+        if (mealId) {
+          idCounts[mealId] = (idCounts[mealId] || 0) + 2
+          seenIds.add(mealId)
         }
-      }
-    }
-
-    for (const m of foundMeals) {
-      const mealId = textField((m as MealDbMeal).idMeal)
-      if (mealId) {
-        idCounts[mealId] = (idCounts[mealId] || 0) + 1
-        seenIds.add(mealId)
       }
     }
   }
@@ -385,7 +418,7 @@ export async function searchRecipesByIngredients(ingredients: string[]): Promise
   }
 
   const results: RecipeSearchResult[] = []
-  for (const [id, count] of ranked.slice(0, 24)) {
+  for (const [id, count] of ranked.slice(0, searchMode === 'recipes' ? 40 : 24)) {
     let detail: Record<string, unknown> | null | undefined = null
     if (inMemoryRecipeCache.has(id)) detail = inMemoryRecipeCache.get(id) as Record<string, unknown>
     else if (cachedById[id]) detail = cachedById[id]
