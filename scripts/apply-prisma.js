@@ -1,9 +1,14 @@
 #!/usr/bin/env node
 const { spawnSync } = require('child_process')
-const dotenv = require('dotenv')
+let dotenv
+try {
+  dotenv = require('dotenv')
+} catch (error) {
+  // dotenv is optional in environments where env vars are already provided
+}
 
-dotenv.config({ path: '.env' })
-dotenv.config({ path: '.env.local' })
+dotenv?.config({ path: '.env' })
+dotenv?.config({ path: '.env.local' })
 
 function log(...args) {
   console.log('[apply-prisma]', ...args)
