@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { isDbAvailable, reportDbFailure, markDbSuccess } from '@/lib/dbCircuit'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { apiError, apiSuccess } from '@/lib/api'
+import { enrichItems } from '@/lib/pantry/enrich-items'
 
 const shoppingListEntrySchema = z.object({
   name: z.string().trim().min(1),
@@ -49,9 +50,25 @@ export async function POST(request: Request) {
 
     if (!isDbAvailable()) return apiError('Service unavailable', 'UNAVAILABLE')
 
-    const createdItems = [] as Array<{ id: string; userId: string; name: string; normalizedName: string; quantity: number; unit: string | null; checked: boolean; createdAt: Date; updatedAt: Date }>
-    for (const entry of parsed.data) {
-      const normalizedName = normalizeName(entry.name)
+    const enriched = await enrichItems(parsed.data.map((entry) => ({ name: entry.name })))
+
+    const createdItems = [] as Array<{
+      id: string
+      userId: string
+      name: string
+      normalizedName: string
+      quantity: number
+      unit: string | null
+      checked: boolean
+      createdAt: Date
+      updatedAt: Date
+      category: string | null
+      aisle: string | null
+    }>
+    for (const [index, entry] of parsed.data.entries()) {
+      const cleanEntry = enriched[index]
+      const displayName = cleanEntry?.name ?? entry.name.trim()
+      const normalizedName = normalizeName(displayName)
       const existingItem = await prisma.shoppingListItem.findFirst({
         where: { userId, normalizedName, checked: false },
       })
@@ -60,11 +77,13 @@ export async function POST(request: Request) {
       const created = await prisma.shoppingListItem.create({
         data: {
           userId,
-          name: entry.name.trim(),
+          name: displayName,
           normalizedName,
           quantity: entry.quantity ?? 1,
           unit: entry.unit ?? null,
           checked: false,
+          category: cleanEntry?.category ?? null,
+          aisle: cleanEntry?.aisle ?? null,
         },
       })
       createdItems.push(created)

@@ -4,8 +4,9 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useRecipes } from '@/lib/hooks'
-import { ArrowLeft, Plus, Trash2, Loader2, FileText } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Loader2, FileText, Sparkles } from 'lucide-react'
 import type { RecipeDifficulty } from '@/lib/types'
+import { parseImportedRecipeText } from '@/lib/recipes/import'
 
 type DraftIngredient = { name: string; amount: string; unit: string }
 type DraftStep = { instruction: string; durationMinutes: string }
@@ -29,6 +30,8 @@ export default function NewRecipePage() {
   const [ingredients, setIngredients] = useState<DraftIngredient[]>([{ name: '', amount: '', unit: 'g' }])
   const [steps, setSteps] = useState<DraftStep[]>([{ instruction: '', durationMinutes: '' }])
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isImporting, setIsImporting] = useState(false)
+  const [importMode, setImportMode] = useState<'manual' | 'paste' | 'document'>('manual')
   const [error, setError] = useState('')
 
   function updateIngredient(index: number, patch: Partial<DraftIngredient>) {
@@ -38,6 +41,47 @@ export default function NewRecipePage() {
     setSteps((prev) => prev.map((step, i) => (i === index ? { ...step, ...patch } : step)))
   }
 
+  async function importRecipeText(text: string, source: 'paste' | 'document') {
+    setIsImporting(true)
+    setError('')
+    try {
+      const response = await fetch('/api/recipes/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ text, source }),
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(payload.error ?? 'Could not import this recipe.')
+      const draft = payload.draft
+      if (!draft) throw new Error('The import service did not return a draft.')
+      setTitle(draft.title ?? '')
+      setDescription(draft.description ?? '')
+      setPrepTimeMinutes(String(draft.prepTimeMinutes ?? 15))
+      setCookTimeMinutes(String(draft.cookTimeMinutes ?? 20))
+      setServings(String(draft.servings ?? 2))
+      setDifficulty(draft.difficulty ?? 'medium')
+      setTags((draft.tags ?? []).join(', '))
+      setIngredients((draft.ingredients ?? []).map((item: { name: string; amount: number | string; unit: string }) => ({ name: item.name, amount: String(item.amount ?? 1), unit: item.unit ?? 'pcs' })))
+      setSteps((draft.steps ?? []).map((step: { instruction: string; durationMinutes?: number | string }) => ({ instruction: step.instruction, durationMinutes: step.durationMinutes ? String(step.durationMinutes) : '' })))
+      setImportMode(source === 'document' ? 'document' : 'paste')
+    } catch (err) {
+      const fallback = parseImportedRecipeText(text, 'Imported recipe')
+      setTitle(fallback.title)
+      setDescription(fallback.description)
+      setPrepTimeMinutes(fallback.prepTimeMinutes)
+      setCookTimeMinutes(fallback.cookTimeMinutes)
+      setServings(fallback.servings)
+      setDifficulty(fallback.difficulty)
+      setTags(fallback.tags.join(', '))
+      setIngredients(fallback.ingredients)
+      setSteps(fallback.steps)
+      setError(err instanceof Error ? err.message : 'Could not import this recipe.')
+    } finally {
+      setIsImporting(false)
+    }
+  }
+
   async function importDocument(file: File | undefined) {
     if (!file) return
     if (!/\.(txt|md)$/i.test(file.name)) {
@@ -45,35 +89,14 @@ export default function NewRecipePage() {
       return
     }
     const text = await file.text()
-    const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
-    if (lines.length === 0) return
+    if (!text.trim()) return
+    await importRecipeText(text, 'document')
+  }
 
-    const ingredientStart = lines.findIndex((line) => /^ingredients?:?$/i.test(line))
-    const methodStart = lines.findIndex((line) => /^(method|instructions?|directions?):?$/i.test(line))
-    const titleLine = lines.find((line, index) => index !== ingredientStart && index !== methodStart) ?? file.name.replace(/\.(txt|md)$/i, '')
-
-    const ingredientLines = ingredientStart >= 0
-      ? lines.slice(ingredientStart + 1, methodStart > ingredientStart ? methodStart : undefined)
-      : []
-    const methodLines = methodStart >= 0 ? lines.slice(methodStart + 1) : []
-
-    setTitle(titleLine.replace(/^#+\s*/, ''))
-    setDescription(`Imported from ${file.name}`)
-    if (ingredientLines.length > 0) {
-      setIngredients(ingredientLines.map((line) => {
-        const clean = line.replace(/^[-*\d.)\s]+/, '')
-        const match = clean.match(/^(\d+(?:\.\d+)?|\d+\/\d+)?\s*([a-zA-Z]+|tsp|tbsp|g|kg|ml|l|cup|cups)?\s+(.+)$/)
-        return {
-          amount: match?.[1] ?? '1',
-          unit: match?.[2] ?? 'pcs',
-          name: (match?.[3] ?? clean).trim(),
-        }
-      }))
-    }
-    if (methodLines.length > 0) {
-      setSteps(methodLines.map((line) => ({ instruction: line.replace(/^[-*\d.)\s]+/, ''), durationMinutes: '' })))
-    }
-    setError('')
+  async function handlePasteImport() {
+    const text = window.prompt('Paste a recipe here and we will try to extract the structure for you.')
+    if (!text?.trim()) return
+    await importRecipeText(text, 'paste')
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -128,18 +151,28 @@ export default function NewRecipePage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="rounded-lg border border-border bg-card p-4">
+        <div className="rounded-lg border border-border bg-card p-4 space-y-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-sm font-medium text-foreground">Import from document</p>
-              <p className="text-xs text-muted-foreground mt-1">Upload a .txt or .md recipe with Ingredients and Method sections.</p>
+              <p className="text-sm font-medium text-foreground">Import recipe draft</p>
+              <p className="text-xs text-muted-foreground mt-1">Paste a recipe or upload a .txt/.md file. We’ll prefill the form so you only need to review it.</p>
             </div>
-            <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-muted">
-              <FileText className="h-4 w-4" strokeWidth={1.6} />
-              Upload
-              <input type="file" accept=".txt,.md,text/plain,text/markdown" className="hidden" onChange={(event) => void importDocument(event.target.files?.[0])} />
-            </label>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => setImportMode('manual')} className={importMode === 'manual' ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground border border-border'} style={{ borderRadius: 999, padding: '0.45rem 0.75rem', fontSize: '0.8rem' }}>Manual</button>
+              <button type="button" onClick={() => void handlePasteImport()} className={importMode === 'paste' ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground border border-border'} style={{ borderRadius: 999, padding: '0.45rem 0.75rem', fontSize: '0.8rem' }}>Paste text</button>
+              <label className={importMode === 'document' ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground border border-border'} style={{ borderRadius: 999, padding: '0.45rem 0.75rem', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer' }}>
+                <FileText className="h-4 w-4" strokeWidth={1.6} />
+                Upload
+                <input type="file" accept=".txt,.md,text/plain,text/markdown" className="hidden" onChange={(event) => void importDocument(event.target.files?.[0])} />
+              </label>
+            </div>
           </div>
+          {isImporting ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Extracting recipe draft…
+            </div>
+          ) : null}
         </div>
 
         <div>

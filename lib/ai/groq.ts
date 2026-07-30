@@ -1,4 +1,5 @@
 import { env } from '@/lib/env'
+import { PANTRY_CATEGORY_OPTIONS } from '@/lib/pantry/categories'
 
 export async function callGroqWithText(text: string): Promise<string> {
   if (!env.GROQ_API_KEY) {
@@ -11,6 +12,7 @@ export async function callGroqWithText(text: string): Promise<string> {
         role: 'system',
         content: `You are a strict pantry data-extraction engine. Return only valid JSON.
 Output an object with an "items" array. Each item must include name, quantity, unit, category, and optional notes.
+Category must be exactly one of: ${PANTRY_CATEGORY_OPTIONS.join(', ')}. If unsure, use "other".
 Use short normalized names and keep the response compact.`,
       },
       {

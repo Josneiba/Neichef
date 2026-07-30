@@ -1,6 +1,6 @@
 import { env } from '@/lib/env'
 
-export type AiTask = 'text-parse' | 'recipe-generation' | 'vision'
+export type AiTask = 'text-parse' | 'item-enrichment' | 'vision'
 export type ProviderName = 'groq' | 'openrouter' | 'gemini' | 'openai' | 'huggingface' | 'none'
 
 export type ProviderSelection = {
@@ -15,6 +15,10 @@ function logSelection(task: AiTask, selection: ProviderSelection) {
   console.info(`[ai-provider] task=${task} provider=${selection.provider} fallback=${fallback} reason=${selection.reason}`)
 }
 
+function coerceProviderList(values: Array<ProviderName | 'none'>): ProviderName[] {
+  return values.filter((value): value is ProviderName => value !== 'none')
+}
+
 export function resolveProviderSelection(task: AiTask, options?: { log?: boolean }): ProviderSelection {
   const hasGroq = Boolean(env.GROQ_API_KEY)
   const hasOpenRouter = Boolean(env.OPENROUTER_API_KEY)
@@ -26,11 +30,11 @@ export function resolveProviderSelection(task: AiTask, options?: { log?: boolean
     'text-parse': {
       task,
       provider: hasGroq ? 'groq' : hasGemini ? 'gemini' : hasOpenAI ? 'openai' : 'none',
-      fallbackProviders: [
-        hasGroq ? 'groq' : 'none',
-        hasGemini ? 'gemini' : 'none',
-        hasOpenAI ? 'openai' : 'none',
-      ].filter((provider) => provider !== 'none'),
+      fallbackProviders: coerceProviderList([
+        (hasGroq ? 'groq' : 'none') as ProviderName | 'none',
+        (hasGemini ? 'gemini' : 'none') as ProviderName | 'none',
+        (hasOpenAI ? 'openai' : 'none') as ProviderName | 'none',
+      ]),
       reason: hasGroq
         ? 'Groq is preferred for compact structured text parsing.'
         : hasGemini
@@ -39,20 +43,26 @@ export function resolveProviderSelection(task: AiTask, options?: { log?: boolean
         ? 'Groq and Gemini are unavailable, so OpenAI is being used as the fallback.'
         : 'No text parser provider is configured.',
     },
-    'recipe-generation': {
+    'item-enrichment': {
       task,
       provider: hasOpenRouter ? 'openrouter' : hasOpenAI ? 'openai' : 'none',
-      fallbackProviders: [hasOpenRouter ? 'openrouter' : 'none', hasOpenAI ? 'openai' : 'none'].filter((provider) => provider !== 'none'),
+      fallbackProviders: coerceProviderList([
+        (hasOpenRouter ? 'openrouter' : 'none') as ProviderName | 'none',
+        (hasOpenAI ? 'openai' : 'none') as ProviderName | 'none',
+      ]),
       reason: hasOpenRouter
-        ? 'OpenRouter is preferred for recipe generation.'
+        ? 'OpenRouter is preferred for cleaning up and categorizing pantry/shopping item names.'
         : hasOpenAI
         ? 'OpenRouter is unavailable, so OpenAI is being used as the fallback.'
-        : 'No recipe generation provider is configured.',
+        : 'No item enrichment provider is configured.',
     },
     vision: {
       task,
       provider: hasGemini ? 'gemini' : hasHuggingFace ? 'huggingface' : 'none',
-      fallbackProviders: [hasGemini ? 'gemini' : 'none', hasHuggingFace ? 'huggingface' : 'none'].filter((provider) => provider !== 'none'),
+      fallbackProviders: coerceProviderList([
+        (hasGemini ? 'gemini' : 'none') as ProviderName | 'none',
+        (hasHuggingFace ? 'huggingface' : 'none') as ProviderName | 'none',
+      ]),
       reason: hasGemini
         ? 'Gemini is preferred for image understanding.'
         : hasHuggingFace

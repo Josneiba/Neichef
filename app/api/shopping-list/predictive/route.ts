@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { generateMealSuggestions } from '@/lib/recipes/predictive'
 import { normalizeFoodName } from '@/lib/recipes/enrich'
+import { enrichItems } from '@/lib/pantry/enrich-items'
 
 export async function POST(request: Request) {
   try {
@@ -39,7 +40,13 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({ suggestedRecipes, shoppingList, totalEstimatedBudget })
+    const enriched = await enrichItems(shoppingList.map((item) => ({ name: item.name })))
+    const enrichedShoppingList = shoppingList.map((item, index) => {
+      const match = enriched[index]
+      return match ? { ...item, name: match.name, category: match.category, aisle: match.aisle } : item
+    })
+
+    return NextResponse.json({ suggestedRecipes, shoppingList: enrichedShoppingList, totalEstimatedBudget })
   } catch (err: any) {
     console.error('[predictive] failed', err)
     return NextResponse.json({ error: 'Failed to generate predictive list' }, { status: 500 })

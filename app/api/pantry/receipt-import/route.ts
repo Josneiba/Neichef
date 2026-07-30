@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { aiRateLimiter, rateLimitHeaders } from '@/lib/rate-limit'
 import { callGeminiWithFile } from '@/lib/ai/gemini'
+import { enrichItems } from '@/lib/pantry/enrich-items'
 
 const schema = z.object({
   imageUrl: z.string().url().optional(),
@@ -97,12 +98,20 @@ export async function POST(request: Request) {
           .filter((item) => item.name.length > 0)
       : []
 
+    const enriched = await enrichItems(items.map((item) => ({ name: item.name, category: item.category })))
+    const enrichedItems = items.map((item, index) => {
+      const match = enriched[index]
+      return match
+        ? { ...item, name: match.name, category: match.category, aisle: match.aisle }
+        : item
+    })
+
     const response = NextResponse.json({
       success: true,
       storeName: String(parsedResult.storeName ?? 'Store Receipt'),
       transactionDate: String(parsedResult.transactionDate ?? new Date().toISOString()),
       totalAmount: Number(parsedResult.totalAmount ?? 0),
-      items,
+      items: enrichedItems,
     })
     const headers = rateLimitHeaders(rateLimitResult)
     Object.entries(headers).forEach(([key, value]) => response.headers.set(key, value))

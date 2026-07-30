@@ -6,6 +6,11 @@ import { apiError, apiSuccess } from '@/lib/api'
 import { fetchRandomMeals } from '@/lib/recipes/external-source'
 import { matchIngredientsToPantry } from '@/lib/recipes/enrich'
 
+const listQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(500).default(200),
+})
+
 type RecipeForResponse = {
   id: string
   userId?: string | null
@@ -39,7 +44,10 @@ async function getOptionalUserId() {
   return data.user?.id ?? null
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url)
+  const { page, pageSize } = listQuerySchema.parse(Object.fromEntries(searchParams.entries()))
+
   // allow unauthenticated access: return public recipes or external recipes
   let userId: string | null = null
   try {
@@ -52,13 +60,22 @@ export async function GET() {
   let recipes: RecipeForResponse[] | null = null
   let pantryItems: { name: string; expirationDate: Date }[] = []
   let savedIds = new Set<string>()
+  let totalCount = 0
   try {
     if (isDbAvailable()) {
-      recipes = await prisma.recipe.findMany({
-        where: userId ? { OR: [{ isPublic: true }, { userId }] } : { isPublic: true },
-        include: { ingredients: true, steps: true },
-        orderBy: { createdAt: 'desc' },
-      })
+      const where = userId ? { OR: [{ isPublic: true }, { userId }] } : { isPublic: true }
+      const [rows, count] = await Promise.all([
+        prisma.recipe.findMany({
+          where,
+          include: { ingredients: true, steps: true },
+          orderBy: { createdAt: 'desc' },
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+        }),
+        prisma.recipe.count({ where }),
+      ])
+      recipes = rows
+      totalCount = count
 
       if (userId) {
         const [pantry, saved] = await Promise.all([
@@ -92,22 +109,22 @@ export async function GET() {
       const match = matchIngredientsToPantry(recipe.ingredients, pantryItems)
       return { ...recipe, ...match, isSaved: savedIds.has(recipe.id), isOwner: Boolean(userId && recipe.userId === userId) }
     })
-    return apiSuccess(enriched)
+    return apiSuccess({ items: enriched, pageInfo: { page, pageSize, totalCount, totalPages: Math.max(1, Math.ceil(totalCount / pageSize)) } })
   }
 
   // No DB recipes or DB unavailable — fetch random meals via TheMealDB
-  const externalNoDb = await fetchRandomMeals(8)
+  const externalNoDb = await fetchRandomMeals(Math.max(pageSize, 24))
   if (externalNoDb.length > 0) {
     console.info('[recipes:list] serving external fallback recipes', { count: externalNoDb.length })
     const enriched = externalNoDb.map((recipe) => {
       const match = matchIngredientsToPantry(recipe.ingredients as { name: string }[], pantryItems)
       return { ...recipe, ...match, isSaved: savedIds.has(recipe.id), isOwner: false }
     })
-    return apiSuccess(enriched)
+    return apiSuccess({ items: enriched, pageInfo: { page, pageSize, totalCount: enriched.length, totalPages: 1 } })
   }
 
   // Last fallback: return safe static mock recipes to avoid empty list
-  return apiSuccess([
+  return apiSuccess({ items: [
     {
       id: 'fallback-1',
       title: 'Quick Tomato Pasta',
@@ -134,7 +151,7 @@ export async function GET() {
       usesExpiringItems: false,
       isSaved: false,
     },
-  ])
+  ], pageInfo: { page, pageSize, totalCount: 1, totalPages: 1 } })
 }
 
 export async function POST(request: Request) {

@@ -6,6 +6,7 @@ import { usePantry } from '@/lib/hooks'
 import { useT } from '@/lib/i18n'
 import { X, Camera, ScanBarcode, FileText, Pencil, Check, Loader2, AlertCircle, Plus, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { PANTRY_CATEGORY_OPTIONS } from '@/lib/pantry/categories'
 import type { Category, StorageLocation } from '@/lib/types'
 
 type AddMode = 'manual' | 'manual_text' | 'photo' | 'barcode' | 'receipt'
@@ -27,7 +28,7 @@ type ReviewItem = {
   countryCode?: string
 }
 
-const categoryOptions: Category[] = ['produce', 'dairy', 'meat', 'seafood', 'grains', 'condiments', 'canned', 'frozen', 'snacks', 'beverages', 'other']
+const categoryOptions: Category[] = [...PANTRY_CATEGORY_OPTIONS]
 
 function newReviewItem(overrides: Partial<ReviewItem> = {}): ReviewItem {
   return {

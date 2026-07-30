@@ -28,6 +28,7 @@ export interface PantryItem {
   urgency: ItemUrgency
   addedDate: string
   imageUrl?: string
+  aisle?: string
 }
 
 export type RecipeDifficulty = 'easy' | 'medium' | 'hard'
@@ -99,6 +100,8 @@ export interface ShoppingListItem {
   checked: boolean
   createdAt: string
   updatedAt: string
+  category?: string | null
+  aisle?: string | null
 }
 
 export interface UserProfile {

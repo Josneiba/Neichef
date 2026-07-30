@@ -209,11 +209,20 @@ export async function GET(request: Request) {
 
     try {
       const searchQuery = queryTerms.length > 0 ? queryTerms : pantryNames.filter(Boolean)
-      const externalRecipes = searchQuery.length > 0
-        ? await searchRecipesByIngredients(searchQuery, searchMode)
-        : await fetchRandomMeals(20)
+      let externalRecipes: Array<Record<string, unknown>> = []
 
-      recipes.push(...externalRecipes.map((recipe) => {
+      if (searchQuery.length > 0) {
+        externalRecipes = await searchRecipesByIngredients(searchQuery, searchMode)
+      } else {
+        externalRecipes = await fetchRandomMeals(20)
+      }
+
+      if (!Array.isArray(externalRecipes) || externalRecipes.length === 0) {
+        const fallbackRecipes = await fetchRandomMeals(12)
+        externalRecipes = fallbackRecipes
+      }
+
+      recipes.push(...externalRecipes.map((recipe, index) => {
         const ingredients = Array.isArray(recipe.ingredients)
           ? recipe.ingredients
               .map((ingredient) => {
@@ -231,14 +240,14 @@ export async function GET(request: Request) {
           : []
 
         return {
-          id: recipe.id,
-          title: recipe.title ?? 'Untitled recipe',
-          imageUrl: String(recipe.imageUrl ?? '' ) || undefined,
+          id: String(recipe.id ?? `external-recipe-${index}`),
+          title: String(recipe.title ?? 'Untitled recipe'),
+          imageUrl: String(recipe.imageUrl ?? '') || undefined,
           ingredients,
-          prepTimeMinutes: recipe.prepTimeMinutes,
-          cookTimeMinutes: recipe.cookTimeMinutes,
-          difficulty: recipe.difficulty,
-          costLevel: recipe.costLevel,
+          prepTimeMinutes: typeof recipe.prepTimeMinutes === 'number' ? recipe.prepTimeMinutes : undefined,
+          cookTimeMinutes: typeof recipe.cookTimeMinutes === 'number' ? recipe.cookTimeMinutes : undefined,
+          difficulty: typeof recipe.difficulty === 'string' ? recipe.difficulty : undefined,
+          costLevel: typeof recipe.costLevel === 'string' ? recipe.costLevel : undefined,
         }
       }))
     } catch (err) {
@@ -260,6 +269,9 @@ export async function GET(request: Request) {
         boostExpiringDays: 3,
       })
 
+    const page = Number(searchParams.get('page') ?? 1)
+    const pageSize = Math.min(500, Number(searchParams.get('pageSize') ?? 200))
+    const startIndex = (page - 1) * pageSize
     const result = scoredSuggestions
       .filter((candidate) => {
         if (difficulty && candidate.recipe.difficulty && candidate.recipe.difficulty !== difficulty) return false
@@ -270,7 +282,7 @@ export async function GET(request: Request) {
         if (maxTime !== undefined && totalTime !== undefined && totalTime > maxTime) return false
         return matchesFlavor(candidate.recipe, flavor) && matchesMealType(candidate.recipe, mealType)
       })
-      .slice(0, queryTerms.length > 0 ? 50 : 10)
+      .slice(startIndex, startIndex + pageSize)
       .map((candidate) => ({
         id: candidate.recipe.id,
         title: candidate.recipe.title,
@@ -287,7 +299,26 @@ export async function GET(request: Request) {
         isSaved: savedIds.has(candidate.recipe.id),
       }))
 
-    return NextResponse.json(result)
+    if (result.length === 0) {
+      const fallbackRecipes = await fetchRandomMeals(8)
+      return NextResponse.json(fallbackRecipes.map((recipe) => ({
+        id: recipe.id,
+        title: recipe.title,
+        description: recipe.description,
+        imageUrl: recipe.imageUrl,
+        ingredients: recipe.ingredients,
+        prepTimeMinutes: recipe.prepTimeMinutes,
+        cookTimeMinutes: recipe.cookTimeMinutes,
+        difficulty: recipe.difficulty,
+        costLevel: recipe.costLevel,
+        pantryMatchCount: 0,
+        totalIngredients: recipe.ingredients.length,
+        usesExpiringItems: false,
+        isSaved: false,
+      })))
+    }
+
+    return NextResponse.json({ items: result, pageInfo: { page, pageSize, totalCount: scoredSuggestions.length, totalPages: Math.max(1, Math.ceil(scoredSuggestions.length / pageSize)) } })
   } catch (err) {
     console.error('Failed to build recipe suggestions:', err)
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

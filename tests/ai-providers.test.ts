@@ -22,7 +22,8 @@ describe('Groq text parsing', () => {
 
     expect(result).toContain('milk')
     expect(fetchMock).toHaveBeenCalledOnce()
-    const [, init] = fetchMock.mock.calls[0]
+    const init = (fetchMock.mock.calls[0] as unknown as [RequestInfo, RequestInit | undefined])?.[1]
+    expect(init).toBeDefined()
     const body = JSON.parse(init?.body as string)
     expect(body.model).toBe('llama-3.1-8b-instant')
     expect(body.temperature).toBe(0.1)

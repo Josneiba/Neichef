@@ -1,12 +1,22 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { prisma } from '@/lib/prisma'
 
 const mockGeminiWithText = vi.fn()
 const mockOpenAIWithText = vi.fn()
+const mockResolveProviderSelection = vi.fn()
+const mockCreateSupabaseServerClient = vi.fn(async () => ({ auth: { getUser: vi.fn(async () => ({ data: { user: { id: 'user-1' } } })) } }))
 
 vi.mock('@/lib/ai/gemini', () => ({
   callGeminiWithText: mockGeminiWithText,
   callOpenAIWithText: mockOpenAIWithText,
+}))
+
+vi.mock('@/lib/ai/provider-router', () => ({
+  resolveProviderSelection: mockResolveProviderSelection,
+}))
+
+vi.mock('@/lib/supabase/server', () => ({
+  createSupabaseServerClient: mockCreateSupabaseServerClient,
 }))
 
 vi.mock('@/lib/prisma', () => ({
@@ -48,10 +58,24 @@ vi.mock('@/lib/prisma', () => ({
 }))
 
 vi.mock('@/lib/supabase/server', () => ({
-  createSupabaseServerClient: vi.fn(async () => ({ auth: { getUser: vi.fn(async () => ({ data: { user: { id: 'user-1' } } })) } })),
+  createSupabaseServerClient: mockCreateSupabaseServerClient,
 }))
 
 describe('API route protection and pantry logic', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    mockResolveProviderSelection.mockReset()
+    mockResolveProviderSelection.mockImplementation((task) => {
+      if (task === 'text-parse') {
+        return { task, provider: 'gemini', fallbackProviders: ['gemini'], reason: 'default test provider' }
+      }
+      return { task, provider: 'none', fallbackProviders: [], reason: 'default test fallback' }
+    })
+    mockGeminiWithText.mockReset()
+    mockOpenAIWithText.mockReset()
+    mockCreateSupabaseServerClient.mockClear()
+  })
+
   it('rejects unauthenticated pantry access when no user is present', async () => {
     const { createSupabaseServerClient } = await import('@/lib/supabase/server')
     vi.mocked(createSupabaseServerClient).mockResolvedValueOnce({ auth: { getUser: vi.fn(async () => ({ data: { user: null } })) } } as never)
@@ -144,6 +168,20 @@ describe('API route protection and pantry logic', () => {
   })
 
   it('parses manual-entry AI responses into pantry items', async () => {
+    mockResolveProviderSelection
+      .mockReturnValueOnce({
+        task: 'text-parse',
+        provider: 'gemini',
+        fallbackProviders: ['gemini'],
+        reason: 'Test fixed Gemini provider',
+      })
+      .mockReturnValueOnce({
+        task: 'item-enrichment',
+        provider: 'none',
+        fallbackProviders: [],
+        reason: 'No enrichment provider configured for test',
+      })
+
     mockGeminiWithText.mockResolvedValueOnce('[{"name":"Milk","quantity":2,"unit":"liters","category":"dairy"}]')
 
     const { POST } = await import('@/app/api/pantry/manual-entry/route')

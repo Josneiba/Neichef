@@ -78,6 +78,8 @@ export function usePantry() {
 
 export function useRecipes() {
   const [recipes, setRecipes] = useState<Recipe[]>([])
+  const [recipesPageInfo, setRecipesPageInfo] = useState<{ page: number; pageSize: number; totalCount: number; totalPages: number }>({ page: 1, pageSize: 200, totalCount: 0, totalPages: 1 })
+  const [recipesPage, setRecipesPage] = useState(1)
   const [suggestions, setSuggestions] = useState<Recipe[] | null>(null)
   const [suggestionError, setSuggestionError] = useState<string | null>(null)
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false)
@@ -119,13 +121,15 @@ export function useRecipes() {
 
   useEffect(() => {
     setIsLoadingRecipes(true)
-    fetch('/api/recipes', { credentials: 'same-origin' })
+    const url = `/api/recipes?page=1&pageSize=${recipesPageInfo.pageSize}`
+    fetch(url, { credentials: 'same-origin' })
       .then((res) => (res.ok ? res.json() : Promise.reject(res)))
       .then((data) => {
-        if (!Array.isArray(data)) return
-        const normalized: Recipe[] = data.map(normalizeRecipe)
+        const items = Array.isArray(data?.items) ? data.items : Array.isArray(data) ? data : []
+        const normalized: Recipe[] = items.map(normalizeRecipe)
         setRecipes(normalized)
         setSavedIds(new Set(normalized.filter((r) => r.isSaved).map((r) => r.id)))
+        if (data?.pageInfo) setRecipesPageInfo(data.pageInfo)
       })
       .catch(() => setRecipes([]))
       .finally(() => setIsLoadingRecipes(false))
@@ -197,7 +201,7 @@ export function useRecipes() {
   }, [loadSuggestions])
   const usePantrySuggestions = useCallback(() => loadSuggestions(), [loadSuggestions])
 
-  return { recipes, suggestedRecipes, savedRecipes, toggleSave, addCustomRecipe, findRecipesByIngredients, usePantrySuggestions, isLoadingSuggestions, isLoadingRecipes, suggestionError }
+  return { recipes, recipesPageInfo, recipesPage, setRecipesPage, suggestedRecipes, savedRecipes, toggleSave, addCustomRecipe, findRecipesByIngredients, usePantrySuggestions, isLoadingSuggestions, isLoadingRecipes, suggestionError }
 }
 
 /**

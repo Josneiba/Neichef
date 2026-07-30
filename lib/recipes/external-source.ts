@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { normalizeFoodName, estimateRecipeCostLevel } from '@/lib/recipes/enrich'
 import { isDbAvailable, reportDbFailure, markDbSuccess } from '@/lib/dbCircuit'
+import { computeDifficulty } from '@/lib/recipes/difficulty'
 
 // In-process cache to avoid unnecessary DB calls for recently-seen external
 // recipes. This complements the shared DB circuit breaker above.
@@ -146,7 +147,12 @@ export function normalizeMealToRecipe(meal: MealDbMeal) {
   const tags = textField(meal.strTags).split(',').filter(Boolean)
   const estimatedCost = estimateRecipeCostLevel(ingredients)
   const estimatedTime = Number(meal.estimatedTime) || Math.max(10, ingredients.length * 6 + 10)
-  const estimatedDifficulty = ingredients.length > 8 ? 'hard' : ingredients.length > 5 ? 'medium' : 'easy'
+  const estimatedDifficulty = computeDifficulty({
+    ingredientsCount: ingredients.length,
+    stepsCount: steps.length,
+    totalTimeMinutes: estimatedTime,
+    instructionsText: steps.map((step) => step.instruction).join(' '),
+  })
 
   return {
     id: `external-${textField(meal.idMeal)}`,

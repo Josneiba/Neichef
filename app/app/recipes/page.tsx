@@ -113,6 +113,7 @@ function RecipesContent() {
   const [fallbackRecipes, setFallbackRecipes] = useState<Recipe[] | null>(null)
   const [fallbackKey, setFallbackKey] = useState<string>('')
   const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize] = useState(() => (typeof window !== 'undefined' && window.innerWidth < 640 ? 10 : 12))
 
   useEffect(() => {
     const ingredients = searchParams.get('ingredients')
@@ -150,7 +151,6 @@ function RecipesContent() {
     return true
   })
 
-  const pageSize = 10
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize))
   const pagedRecipes = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
@@ -191,11 +191,12 @@ function RecipesContent() {
     setFallbackKey(nextKey)
     ;(async () => {
       try {
-        const res = await fetch('/api/recipes', { credentials: 'same-origin' })
+        const res = await fetch('/api/recipes?page=1&pageSize=200', { credentials: 'same-origin' })
         if (!res.ok) return
         const data = await res.json()
         if (cancelled) return
-        if (Array.isArray(data) && data.length > 0) setFallbackRecipes(data)
+        const items = Array.isArray(data?.items) ? data.items : Array.isArray(data) ? data : []
+        if (items.length > 0) setFallbackRecipes(items)
       } catch {
         // ignore — we'll keep showing the empty state
       }
@@ -377,9 +378,14 @@ function RecipesContent() {
       ) : (
         <>
           {filtered.length > 0 && (
-            <p className="text-sm text-muted-foreground mb-4">
-              Showing {pagedRecipes.length} of {filtered.length} result{filtered.length === 1 ? '' : 's'}
-            </p>
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-sm text-muted-foreground">
+                Showing {pagedRecipes.length} of {filtered.length} result{filtered.length === 1 ? '' : 's'}
+              </p>
+              {pageCount > 1 && (
+                <p className="text-xs text-muted-foreground">Page {currentPage} of {pageCount}</p>
+              )}
+            </div>
           )}
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {pagedRecipes.map((recipe) => (
@@ -387,7 +393,18 @@ function RecipesContent() {
             ))}
           </div>
           {pageCount > 1 && (
-            <div className="mt-6 flex items-center justify-center gap-2">
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className={cn(
+                  'px-3 py-2 rounded-md text-sm transition-colors',
+                  currentPage === 1 ? 'bg-card text-muted-foreground cursor-not-allowed' : 'bg-background text-foreground border border-border hover:bg-muted'
+                )}
+              >
+                Anterior
+              </button>
               {Array.from({ length: pageCount }, (_, index) => (
                 <button
                   key={index}
@@ -400,6 +417,17 @@ function RecipesContent() {
                   {index + 1}
                 </button>
               ))}
+              <button
+                type="button"
+                onClick={() => setCurrentPage((prev) => Math.min(prev + 1, pageCount))}
+                disabled={currentPage === pageCount}
+                className={cn(
+                  'px-3 py-2 rounded-md text-sm transition-colors',
+                  currentPage === pageCount ? 'bg-card text-muted-foreground cursor-not-allowed' : 'bg-background text-foreground border border-border hover:bg-muted'
+                )}
+              >
+                Siguiente
+              </button>
             </div>
           )}
         </>

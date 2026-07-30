@@ -5,6 +5,7 @@ import { aiRateLimiter, rateLimitHeaders } from '@/lib/rate-limit'
 import { callGeminiWithText, callOpenAIWithText } from '@/lib/ai/gemini'
 import { callGroqWithText } from '@/lib/ai/groq'
 import { resolveProviderSelection } from '@/lib/ai/provider-router'
+import { enrichItems } from '@/lib/pantry/enrich-items'
 
 const schema = z.object({ text: z.string().min(1) })
 const limiter = aiRateLimiter
@@ -72,7 +73,13 @@ export async function POST(request: Request) {
     const items = Array.isArray(payload) ? payload : Array.isArray(payload.items) ? payload.items : []
     const normalized = (items as unknown[]).map((item) => normalizeItem(item)).filter((item) => item.name.length > 0)
 
-    const response = NextResponse.json({ items: normalized })
+    const enriched = await enrichItems(normalized.map((item) => ({ name: item.name, category: item.category })))
+    const enrichedItems = normalized.map((item, index) => {
+      const match = enriched[index]
+      return match ? { ...item, name: match.name, category: match.category, aisle: match.aisle } : item
+    })
+
+    const response = NextResponse.json({ items: enrichedItems })
     const headers = rateLimitHeaders(rateLimitResult)
     Object.entries(headers).forEach(([key, value]) => response.headers.set(key, value))
     return response
