@@ -1,9 +1,45 @@
 import type { ItemUrgency } from '@/lib/types'
 
+const SHELF_LIFE_DAYS: Record<string, number> = {
+  produce: 5,
+  dairy: 10,
+  meat: 3,
+  seafood: 2,
+  grains: 180,
+  condiments: 180,
+  beverages: 30,
+  frozen: 120,
+  canned: 365,
+  snacks: 90,
+  pantry: 120,
+  spice_rack: 365,
+  fridge: 7,
+  freezer: 120,
+  cellar: 180,
+  other: 14,
+}
+
 export function parseDate(value: string | Date): Date | null {
   if (value instanceof Date) return value
   const parsed = new Date(value)
   return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+export function estimateExpiryDate(category: string, name?: string) {
+  const baseDays = SHELF_LIFE_DAYS[category?.toLowerCase?.() ?? 'other'] ?? SHELF_LIFE_DAYS.other
+  const text = (name ?? '').toLowerCase()
+
+  let boostDays = 0
+  if (/(milk|yogurt|cheese|butter|cream)/.test(text)) boostDays -= 3
+  if (/(salmon|tuna|fish|shrimp|seafood|chicken|beef|pork)/.test(text)) boostDays -= 2
+  if (/(rice|beans|lentils|flour|pasta|cereal|oats|coffee|tea)/.test(text)) boostDays += 30
+  if (/(tomato|lettuce|spinach|herbs|berries|banana|apple|cucumber|avocado)/.test(text)) boostDays -= 1
+  if (/(sauce|oil|vinegar|jam|pickle|soy|honey|mustard)/.test(text)) boostDays += 60
+  if (/(frozen|icecream)/.test(text)) boostDays += 30
+
+  const date = new Date()
+  date.setDate(date.getDate() + Math.max(1, baseDays + boostDays))
+  return date
 }
 
 export function daysUntilExpiration(value: string | Date): number | null {

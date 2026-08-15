@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { prisma } from '@/lib/prisma'
+import { ingredientMatchesPantry } from '@/lib/recipes/enrich'
+import { estimateExpiryDate } from '@/lib/pantry/expiration'
 
 const mockGeminiWithText = vi.fn()
 const mockOpenAIWithText = vi.fn()
@@ -212,5 +214,21 @@ describe('API route protection and pantry logic', () => {
     expect(compute(fresh)).toBe('fresh')
     expect(compute(expiring)).toBe('expiring')
     expect(compute(expired)).toBe('expired')
+  })
+
+  it('uses category-aware shelf life estimates instead of a single default expiry', () => {
+    const produce = estimateExpiryDate('produce', 'bananas')
+    const grains = estimateExpiryDate('grains', 'rice')
+    const seafood = estimateExpiryDate('seafood', 'salmon')
+
+    expect(produce.getTime()).toBeGreaterThan(Date.now())
+    expect(grains.getTime()).toBeGreaterThan(produce.getTime())
+    expect(seafood.getTime()).toBeLessThan(produce.getTime())
+  })
+
+  it('matches pantry staples and ingredient aliases with a realistic pantry overlap', () => {
+    expect(ingredientMatchesPantry('black beans', 'black beans')).toBe(true)
+    expect(ingredientMatchesPantry('beans', 'black beans')).toBe(true)
+    expect(ingredientMatchesPantry('salmon', 'salmon fillet')).toBe(true)
   })
 })

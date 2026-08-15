@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import FocusTrap from 'focus-trap-react'
 import { usePantry } from '@/lib/hooks'
 import { useT } from '@/lib/i18n'
+import { estimateExpiryDate } from '@/lib/pantry/expiration'
 import { X, Camera, ScanBarcode, FileText, Pencil, Check, Loader2, AlertCircle, Plus, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { PANTRY_CATEGORY_OPTIONS } from '@/lib/pantry/categories'
@@ -66,10 +67,8 @@ function fileToBase64(file: File): Promise<string> {
   })
 }
 
-function defaultExpiryDate(daysAhead = 7): string {
-  const d = new Date()
-  d.setDate(d.getDate() + daysAhead)
-  return d.toISOString().split('T')[0]
+function defaultExpiryDate(category: string, itemName?: string): string {
+  return estimateExpiryDate(category, itemName).toISOString().split('T')[0]
 }
 
 // Minimal ambient typing for the browser's native Barcode Detection API.
@@ -176,7 +175,7 @@ export function AddItemModal({ onClose, initialMode = 'manual' }: AddItemModalPr
   function handleManualSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!name || !quantity || !expiry) return
-    addItem({ name, quantity: Number(quantity), unit, category, location, expirationDate: expiry })
+    addItem({ name, quantity: Number(quantity), unit, category, location, expirationDate: expiry || defaultExpiryDate(category, name) })
     onClose()
   }
 
@@ -229,14 +228,26 @@ export function AddItemModal({ onClose, initialMode = 'manual' }: AddItemModalPr
     }
   }
 
-  function handleTextConfirm() {
-    const expirationDate = defaultExpiryDate(14)
-    parsedTextItems
-      .filter((i) => i.confirmed && i.name.trim())
-      .forEach((item) => {
-        addItem({ name: item.name.trim(), quantity: item.quantity, unit: item.unit, category: item.category, location: 'pantry', expirationDate })
-      })
-    onClose()
+  async function handleTextConfirm() {
+    const confirmedItems = parsedTextItems.filter((i) => i.confirmed && i.name.trim())
+
+    try {
+      await Promise.all(
+        confirmedItems.map((item) =>
+          addItem({
+            name: item.name.trim(),
+            quantity: item.quantity,
+            unit: item.unit,
+            category: item.category,
+            location: 'pantry',
+            expirationDate: defaultExpiryDate(item.category, item.name),
+          }),
+        ),
+      )
+      onClose()
+    } catch (error) {
+      setManualTextError(error instanceof Error ? error.message : 'Could not save parsed pantry items.')
+    }
   }
 
   function resetManualText() {
@@ -290,14 +301,27 @@ export function AddItemModal({ onClose, initialMode = 'manual' }: AddItemModalPr
     }
   }
 
-  function handlePhotoConfirm() {
+  async function handlePhotoConfirm() {
     const expirationDate = defaultExpiryDate(7)
-    photoItems
-      .filter((i) => i.confirmed && i.name.trim())
-      .forEach((item) => {
-        addItem({ name: item.name.trim(), quantity: item.quantity, unit: item.unit, category: item.category, location: 'fridge', expirationDate })
-      })
-    onClose()
+    const confirmedItems = photoItems.filter((i) => i.confirmed && i.name.trim())
+
+    try {
+      await Promise.all(
+        confirmedItems.map((item) =>
+          addItem({
+            name: item.name.trim(),
+            quantity: item.quantity,
+            unit: item.unit,
+            category: item.category,
+            location: 'fridge',
+            expirationDate,
+          }),
+        ),
+      )
+      onClose()
+    } catch (error) {
+      setPhotoError(error instanceof Error ? error.message : 'Could not save detected ingredients.')
+    }
   }
 
   function resetPhoto() {
@@ -420,7 +444,7 @@ export function AddItemModal({ onClose, initialMode = 'manual' }: AddItemModalPr
       unit: scannedProduct.quantity || 'pcs',
       category: scannedProduct.category,
       location: 'pantry',
-      expirationDate: defaultExpiryDate(14),
+      expirationDate: defaultExpiryDate(category, name),
     })
     onClose()
   }
@@ -475,30 +499,44 @@ export function AddItemModal({ onClose, initialMode = 'manual' }: AddItemModalPr
     }
   }
 
-  function handleReceiptConfirm() {
+  async function handleReceiptConfirm() {
     const expirationDate = defaultExpiryDate(7)
     const itemsToAdd = receiptItems.filter((i) => i.confirmed && i.name.trim())
-    itemsToAdd.forEach((item) => {
-      addItem({ name: item.name.trim(), quantity: item.quantity, unit: item.unit, category: item.category, location: 'pantry', expirationDate })
-    })
 
-    // Send price data to ingestion pipeline if available (non-blocking)
     try {
-      const priceItems = itemsToAdd
-        .filter((i) => i.price != null)
-        .map((i) => ({ name: i.name.trim(), price: i.price, currency: i.currency ?? 'USD', countryCode: i.countryCode ?? undefined }))
-      if (priceItems.length > 0) {
-        void fetch('/api/pantry/receipt-price', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ items: priceItems }),
-        }).catch((e) => console.warn('Price ingestion failed', e))
-      }
-    } catch (err) {
-      console.warn('Failed to send price ingest', err)
-    }
+      await Promise.all(
+        itemsToAdd.map((item) =>
+          addItem({
+            name: item.name.trim(),
+            quantity: item.quantity,
+            unit: item.unit,
+            category: item.category,
+            location: 'pantry',
+            expirationDate,
+          }),
+        ),
+      )
 
-    onClose()
+      // Send price data to ingestion pipeline if available (non-blocking)
+      try {
+        const priceItems = itemsToAdd
+          .filter((i) => i.price != null)
+          .map((i) => ({ name: i.name.trim(), price: i.price, currency: i.currency ?? 'USD', countryCode: i.countryCode ?? undefined }))
+        if (priceItems.length > 0) {
+          void fetch('/api/pantry/receipt-price', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ items: priceItems }),
+          }).catch((e) => console.warn('Price ingestion failed', e))
+        }
+      } catch (err) {
+        console.warn('Failed to send price ingest', err)
+      }
+
+      onClose()
+    } catch (error) {
+      setReceiptError(error instanceof Error ? error.message : 'Could not save receipt items.')
+    }
   }
 
   function resetReceipt() {

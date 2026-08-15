@@ -310,6 +310,7 @@ export async function searchRecipesByIngredients(
   const seenIds = new Set<string>()
 
   const queryText = ingredients.join(' ').trim()
+  const normalizeKeyword = (value: string) => normalizeFoodName(value).replace(/s$/, '')
   const shouldTryNameSearch = searchMode === 'recipes' && queryText.length >= 3 && queryText.length <= 60 && /^[a-zA-Z\s]+$/.test(queryText)
   if (shouldTryNameSearch) {
     const nameSearchQueries = new Set<string>()
@@ -332,7 +333,11 @@ export async function searchRecipesByIngredients(
     }
 
     for (const [category, keywords] of Object.entries(recipeCategoryKeywords)) {
-      if (!keywords.some((keyword) => queryTokens.includes(keyword))) continue
+      if (!keywords.some((keyword) => queryTokens.some((token) => {
+        const normalizedToken = normalizeKeyword(token)
+        const normalizedKeyword = normalizeKeyword(keyword)
+        return token === keyword || normalizedToken === normalizedKeyword || token.includes(keyword) || keyword.includes(token) || normalizedToken.includes(normalizedKeyword) || normalizedKeyword.includes(normalizedToken)
+      }))) continue
 
       try {
         const res = await fetch(`https://www.themealdb.com/api/json/v1/1/filter.php?c=${encodeURIComponent(category)}`)

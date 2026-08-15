@@ -1,4 +1,5 @@
 import { calculateSimilarity } from '@/lib/pantry/fuzzy-match'
+import { ingredientMatchesPantry } from '@/lib/recipes/enrich'
 
 export interface PantryItem {
   id: string
@@ -71,7 +72,11 @@ export function filterAndScoreRecipes(
     let expiringItemsUsedCount = 0
 
     for (const req of recipe.ingredients) {
-      const matchedPantry = pantry.find((p) => calculateSimilarity(req.name, p.name) >= 0.7)
+      const matchedPantry = pantry.find((p) => {
+        const genericMatch = calculateSimilarity(req.name, p.name) >= 0.72
+        const pantryAliasMatch = ingredientMatchesPantry(req.name, p.name)
+        return genericMatch || pantryAliasMatch
+      })
 
       if (matchedPantry) {
         matchedIngredients.push({ required: req, pantryItem: matchedPantry })
@@ -107,6 +112,44 @@ export function filterAndScoreRecipes(
   }
 
   return results.sort((a, b) => b.score - a.score)
+}
+
+export function dedupeRecipes<T extends { id?: string; title?: string }>(recipes: T[]): T[] {
+  const seen = new Map<string, T>()
+
+  for (const recipe of recipes) {
+    const id = String(recipe?.id ?? '').trim()
+    const title = String(recipe?.title ?? '').trim().toLowerCase()
+    const key = id || title || `${Math.random()}`
+
+    if (!seen.has(key)) {
+      seen.set(key, recipe)
+      continue
+    }
+
+    const existing = seen.get(key)
+    if (!existing) continue
+
+    const existingTitle = String(existing?.title ?? '').trim().toLowerCase()
+    const existingId = String(existing?.id ?? '').trim()
+
+    if (!existingId && existingTitle && title && existingTitle === title) {
+      continue
+    }
+
+    if (!existingId && id && existingTitle && title && existingTitle === title) {
+      continue
+    }
+
+    if (id && existingId && existingId === id) {
+      continue
+    }
+
+    const fallbackKey = `${title || 'untitled'}:${String(recipe?.description ?? '')}`
+    if (!seen.has(fallbackKey)) seen.set(fallbackKey, recipe)
+  }
+
+  return Array.from(seen.values())
 }
 
 export function prioritizeForHome(pantry: PantryItem[], recipes: Recipe[], limit = 3) {

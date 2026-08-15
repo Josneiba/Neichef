@@ -8,7 +8,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { AddItemModal } from '@/components/pantry/add-item-modal'
 import { PantryFilters } from '@/components/pantry/pantry-filters'
 import { cn } from '@/lib/utils'
-import { Package, Plus, Grid2X2, List } from 'lucide-react'
+import { Package, Plus, Grid2X2, List, Trash2 } from 'lucide-react'
 import { inventorySummary } from '@/lib/pantry/calculate-stock'
 import { detectDuplicatePantryItems } from '@/lib/pantry/detect-duplicates'
 import { STORAGE_LOCATIONS } from '@/lib/pantry/storage'
@@ -17,7 +17,7 @@ import type { Category, ItemUrgency, StorageLocation } from '@/lib/types'
 type ViewMode = 'list' | 'grid'
 
 export default function PantryPage() {
-  const { items, removeItem } = usePantry()
+  const { items, removeItem, updateItem } = usePantry()
   const t = useT()
   const [viewMode, setViewMode] = useState<ViewMode>('list')
   const [showAdd, setShowAdd] = useState(false)
@@ -49,6 +49,27 @@ export default function PantryPage() {
     const diff = Math.ceil((exp.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
     return diff >= 0 && diff <= 2
   }), [items])
+
+  async function mergeDuplicateGroup(group: { items: typeof items }) {
+    if (group.items.length < 2) return
+    const [primary, ...rest] = group.items
+    const mergedQuantity = group.items.reduce((sum, item) => sum + item.quantity, 0)
+    const primaryExpiry = new Date(primary.expirationDate)
+    const earliestExpiry = group.items.reduce((earliest, item) => {
+      const itemDate = new Date(item.expirationDate)
+      return itemDate < earliest ? itemDate : earliest
+    }, primaryExpiry)
+
+    await updateItem(primary.id, {
+      quantity: mergedQuantity,
+      expirationDate: earliestExpiry.toISOString().split('T')[0],
+    })
+    await Promise.all(rest.map((item) => removeItem(item.id)))
+  }
+
+  async function deleteDuplicateGroup(group: { items: typeof items }) {
+    await Promise.all(group.items.map((item) => removeItem(item.id)))
+  }
 
   return (
     <div className="px-6 py-8 max-w-5xl mx-auto pb-24 lg:pb-8">
@@ -110,8 +131,16 @@ export default function PantryPage() {
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
             {duplicateGroups.slice(0, 3).map((group) => (
               <div key={group.normalizedName} className="rounded-xl border border-border bg-card p-3">
-                <p className="text-sm font-medium text-foreground">{group.normalizedName}</p>
-                <p className="text-xs text-muted-foreground mt-1">{group.items.length} {t('similarItems')}</p>
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">{group.normalizedName}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{group.items.length} {t('similarItems')}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => void mergeDuplicateGroup(group)} className="text-xs font-medium text-primary hover:underline">Merge</button>
+                    <button type="button" onClick={() => void deleteDuplicateGroup(group)} className="text-xs font-medium text-destructive hover:underline">Delete</button>
+                  </div>
+                </div>
               </div>
             ))}
           </div>
@@ -233,11 +262,11 @@ export default function PantryPage() {
                   <div className="flex items-center gap-2 md:w-24">
                     <UrgencyBadge urgency={item.urgency} daysUntilExpiry={diff > 0 ? diff : undefined} />
                     <button
-                      onClick={() => removeItem(item.id)}
-                      className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-all ml-1 text-xs"
+                      onClick={() => void removeItem(item.id)}
+                      className="opacity-100 md:opacity-0 md:group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-all ml-1"
                       aria-label="Remove item"
                     >
-                      ×
+                      <Trash2 className="h-4 w-4" strokeWidth={1.5} />
                     </button>
                   </div>
                 </div>
@@ -263,11 +292,11 @@ export default function PantryPage() {
                     <p className="text-xs text-muted-foreground capitalize mt-0.5">{item.category}</p>
                   </div>
                   <button
-                    onClick={() => removeItem(item.id)}
-                    className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-all text-lg leading-none flex-shrink-0"
+                    onClick={() => void removeItem(item.id)}
+                    className="opacity-100 md:opacity-0 md:group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-all flex-shrink-0"
                     aria-label="Remove item"
                   >
-                    ×
+                    <Trash2 className="h-4 w-4" strokeWidth={1.5} />
                   </button>
                 </div>
                 <div className="space-y-1.5">

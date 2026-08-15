@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { dedupeRecipes } from './recipes/engine'
 import type { PantryItem, Recipe, Notification, BudgetStats, ShoppingListItem, UserProfile, ItemUrgency, Category, StorageLocation } from './types'
 
 function computeUrgency(expirationDate: string): ItemUrgency {
@@ -27,14 +28,23 @@ function normalizeRecipe(recipe: Recipe): Recipe {
 export function usePantry() {
   const [items, setItems] = useState<PantryItem[]>([])
 
-  useEffect(() => {
-    fetch('/api/pantry', { credentials: 'same-origin' })
-      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
-      .then((data) => {
-        if (Array.isArray(data)) setItems(data.map(normalizePantryItem))
-      })
-      .catch(() => setItems([]))
+  const refreshItems = useCallback(async () => {
+    try {
+      const response = await fetch('/api/pantry', { credentials: 'same-origin' })
+      const data = await response.json().catch(() => [])
+      if (response.ok && Array.isArray(data)) {
+        setItems(data.map(normalizePantryItem))
+        return
+      }
+      setItems([])
+    } catch {
+      setItems([])
+    }
   }, [])
+
+  useEffect(() => {
+    void refreshItems()
+  }, [refreshItems])
 
   const addItem = useCallback(async (item: Omit<PantryItem, 'id' | 'addedDate' | 'urgency'>) => {
     const response = await fetch('/api/pantry', {
@@ -43,16 +53,23 @@ export function usePantry() {
       credentials: 'same-origin',
       body: JSON.stringify(item),
     })
-    const created = await response.json()
-    if (created?.id) {
-      setItems((prev) => [normalizePantryItem(created), ...prev])
+
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      throw new Error(payload?.error ?? 'Could not save pantry item')
     }
-  }, [])
+
+    await refreshItems()
+    return payload
+  }, [refreshItems])
 
   const removeItem = useCallback(async (id: string) => {
-    await fetch(`/api/pantry/${id}`, { method: 'DELETE', credentials: 'same-origin' })
-    setItems((prev) => prev.filter((item) => item.id !== id))
-  }, [])
+    const response = await fetch(`/api/pantry/${id}`, { method: 'DELETE', credentials: 'same-origin' })
+    if (!response.ok) {
+      throw new Error('Could not delete pantry item')
+    }
+    await refreshItems()
+  }, [refreshItems])
 
   const updateItem = useCallback(async (id: string, updates: Partial<PantryItem>) => {
     const response = await fetch(`/api/pantry/${id}`, {
@@ -61,10 +78,11 @@ export function usePantry() {
       credentials: 'same-origin',
       body: JSON.stringify(updates),
     })
-    if (response.ok) {
-      setItems((prev) => prev.map((item) => (item.id === id ? normalizePantryItem({ ...item, ...updates }) : item)))
+    if (!response.ok) {
+      throw new Error('Could not update pantry item')
     }
-  }, [])
+    await refreshItems()
+  }, [refreshItems])
 
   const getByUrgency = useCallback((urgency: ItemUrgency) => items.filter((i) => i.urgency === urgency), [items])
   const getByCategory = useCallback((category: Category) => items.filter((i) => i.category === category), [items])
@@ -91,6 +109,7 @@ export function useRecipes() {
     ingredients?: string[]
     searchMode?: 'ingredients' | 'recipes'
     matchMode?: 'flexible' | 'exact'
+    difficulty?: 'easy' | 'medium' | 'hard'
     maxTimeMinutes?: string
     flavor?: 'any' | 'sweet' | 'savory'
     mealType?: 'any' | 'breakfast' | 'lunch' | 'dinner' | 'snack' | 'dessert'
@@ -102,6 +121,7 @@ export function useRecipes() {
     else if (options?.query) params.set('ingredients', options.query)
     if (options?.searchMode) params.set('searchMode', options.searchMode)
     if (options?.matchMode) params.set('matchMode', options.matchMode)
+    if (options?.difficulty) params.set('difficulty', options.difficulty)
     if (options?.maxTimeMinutes && options.maxTimeMinutes !== 'any') params.set('maxTimeMinutes', options.maxTimeMinutes)
     if (options?.flavor) params.set('flavor', options.flavor)
     if (options?.mealType) params.set('mealType', options.mealType)
@@ -110,7 +130,7 @@ export function useRecipes() {
       const res = await fetch(url, { credentials: 'same-origin' })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error ?? 'Could not load recipe suggestions')
-      if (Array.isArray(data)) setSuggestions(data.map(normalizeRecipe))
+      if (Array.isArray(data)) setSuggestions(dedupeRecipes(data.map(normalizeRecipe)))
     } catch (err) {
       setSuggestions(null)
       setSuggestionError(err instanceof Error ? err.message : 'Could not load recipe suggestions')
@@ -126,7 +146,7 @@ export function useRecipes() {
       .then((res) => (res.ok ? res.json() : Promise.reject(res)))
       .then((data) => {
         const items = Array.isArray(data?.items) ? data.items : Array.isArray(data) ? data : []
-        const normalized: Recipe[] = items.map(normalizeRecipe)
+        const normalized: Recipe[] = dedupeRecipes(items.map(normalizeRecipe))
         setRecipes(normalized)
         setSavedIds(new Set(normalized.filter((r) => r.isSaved).map((r) => r.id)))
         if (data?.pageInfo) setRecipesPageInfo(data.pageInfo)
@@ -181,8 +201,8 @@ export function useRecipes() {
 
   const savedRecipes = recipes.filter((recipe) => savedIds.has(recipe.id))
   const suggestedRecipes = suggestions && suggestions.length > 0
-    ? suggestions
-    : [...recipes].sort((a, b) => {
+    ? dedupeRecipes(suggestions)
+    : dedupeRecipes([...recipes]).sort((a, b) => {
       if (b.usesExpiringItems !== a.usesExpiringItems) return b.usesExpiringItems ? 1 : -1
       const aRatio = a.pantryMatchCount / Math.max(a.totalIngredients, 1)
       const bRatio = b.pantryMatchCount / Math.max(b.totalIngredients, 1)
@@ -192,7 +212,7 @@ export function useRecipes() {
   const findRecipesByIngredients = useCallback((
     ingredients: string | string[],
     matchMode: 'flexible' | 'exact',
-    options?: { maxTimeMinutes?: string; flavor?: 'any' | 'sweet' | 'savory'; mealType?: 'any' | 'breakfast' | 'lunch' | 'dinner' | 'snack' | 'dessert'; searchMode?: 'ingredients' | 'recipes' },
+    options?: { difficulty?: 'easy' | 'medium' | 'hard'; maxTimeMinutes?: string; flavor?: 'any' | 'sweet' | 'savory'; mealType?: 'any' | 'breakfast' | 'lunch' | 'dinner' | 'snack' | 'dessert'; searchMode?: 'ingredients' | 'recipes' },
   ) => {
     if (Array.isArray(ingredients)) {
       return loadSuggestions({ ingredients, matchMode, ...options })

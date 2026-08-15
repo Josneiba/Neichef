@@ -91,7 +91,7 @@ async function getGoogleAccessToken() {
 }
 
 function getGeminiModel() {
-  return env.GOOGLE_GEMINI_MODEL ?? 'gemini-2.0-flash-exp'
+  return env.GOOGLE_GEMINI_MODEL ?? 'gemini-2.5-flash'
 }
 
 export async function callGeminiWithFile(file: File, source: 'upload_photo' | 'upload_file') {

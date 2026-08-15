@@ -29,11 +29,16 @@ function RecipeCard({ recipe, onToggleSave }: { recipe: Recipe; onToggleSave: (i
   const matchRatio = recipe.pantryMatchCount / Math.max(recipe.totalIngredients, 1)
   const totalTime = recipe.prepTimeMinutes + recipe.cookTimeMinutes
   const img = recipe.imageUrl ?? recipeImages[recipe.id]
+  const ingredientPreview = Array.isArray(recipe.ingredients)
+    ? recipe.ingredients
+        .slice(0, 4)
+        .map((item) => item.name)
+        .filter(Boolean)
+    : []
 
   return (
-    <div className="bg-card border border-border rounded-xl overflow-hidden hover:border-muted-foreground/30 transition-colors group">
-      {/* Image */}
-      <div className="relative h-44 bg-muted overflow-hidden">
+    <div className="h-full flex flex-col bg-card border border-border rounded-xl overflow-hidden hover:border-muted-foreground/30 transition-colors group">
+      <div className="relative h-44 bg-muted overflow-hidden flex-shrink-0">
         {img ? (
           <img src={img} alt={recipe.title} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
         ) : (
@@ -41,13 +46,11 @@ function RecipeCard({ recipe, onToggleSave }: { recipe: Recipe; onToggleSave: (i
             <BookOpen className="w-8 h-8 text-muted-foreground" strokeWidth={1} />
           </div>
         )}
-        {/* Expiring badge */}
         {recipe.usesExpiringItems && (
           <div className="absolute top-3 left-3 bg-[oklch(0.94_0.07_75)] border border-[oklch(0.84_0.09_70)] text-[oklch(0.42_0.10_55)] text-[10px] font-medium px-2 py-1 rounded">
             Uses expiring items
           </div>
         )}
-        {/* Save button */}
         <button
           onClick={(e) => { e.preventDefault(); onToggleSave(recipe.id) }}
           className="absolute top-3 right-3 w-8 h-8 rounded-full bg-card/90 backdrop-blur-sm flex items-center justify-center text-foreground hover:bg-card transition-colors shadow-sm"
@@ -60,14 +63,12 @@ function RecipeCard({ recipe, onToggleSave }: { recipe: Recipe; onToggleSave: (i
         </button>
       </div>
 
-      {/* Content */}
-      <div className="p-4">
-        {/* Pantry match */}
+      <div className="p-4 flex flex-1 flex-col">
         <div className="flex items-center gap-2 mb-2">
           <div className="flex-1 h-1 bg-border rounded-full overflow-hidden">
             <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${matchRatio * 100}%` }} />
           </div>
-          <span className="text-xs text-muted-foreground shrink-0">
+          <span className="text-[11px] text-muted-foreground shrink-0">
             {recipe.pantryMatchCount}/{recipe.totalIngredients} {t('inPantry')}
           </span>
         </div>
@@ -76,7 +77,16 @@ function RecipeCard({ recipe, onToggleSave }: { recipe: Recipe; onToggleSave: (i
           <h3 className="font-serif text-base text-foreground mb-1 group-hover:text-primary transition-colors line-clamp-1">
             {recipe.title}
           </h3>
-          <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed mb-3">{recipe.description}</p>
+          <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed mb-2">{recipe.description}</p>
+          <div className="flex flex-wrap gap-1.5 mb-3">
+            {ingredientPreview.length > 0 ? ingredientPreview.map((ingredient) => (
+              <span key={ingredient} className="inline-flex items-center rounded-full border border-border bg-background px-2 py-0.5 text-[10px] text-muted-foreground">
+                {ingredient}
+              </span>
+            )) : (
+              <span className="text-[10px] text-muted-foreground">Ingredients not listed</span>
+            )}
+          </div>
         </Link>
 
         <div className="flex items-center justify-between pt-3 border-t border-border">
@@ -165,6 +175,27 @@ function RecipesContent() {
   }, [tab, diffFilter, costFilter, maxTime, suggestedRecipes.length, savedRecipes.length, recipes.length])
 
   const isLoading = isLoadingSuggestions || isLoadingRecipes
+
+  function handleDifficultyChange(nextDifficulty: DifficultyFilter) {
+    setDiffFilter(nextDifficulty)
+    if (tab !== 'suggested') return
+
+    const difficulty = nextDifficulty === 'all' ? undefined : nextDifficulty
+    const query = ingredientText.trim()
+
+    if (searchMode === 'recipes') {
+      void findRecipesByIngredients(query || '', matchMode, { searchMode, difficulty })
+      return
+    }
+
+    const ingredients = parseIngredientList(query)
+    if (ingredients.length > 0) {
+      void findRecipesByIngredients(ingredients, matchMode, { searchMode, difficulty })
+      return
+    }
+
+    void usePantrySuggestions()
+  }
   // When there are no filtered results for suggestions, try fetching a
   // fallback list from the public `/api/recipes` endpoint (which itself
   // returns external fallbacks when DB is unavailable). This prevents the
@@ -220,6 +251,15 @@ function RecipesContent() {
     void findRecipesByIngredients(ingredientText, matchMode, { searchMode })
   }
 
+  function handleBrowseAllRecipes() {
+    setIngredientText('')
+    setSearchMode('recipes')
+    setMatchMode('flexible')
+    setTab('suggested')
+    setCurrentPage(1)
+    void findRecipesByIngredients('', 'flexible', { searchMode: 'recipes' })
+  }
+
   return (
     <div className="px-6 py-8 max-w-5xl mx-auto pb-24 lg:pb-8">
       {/* Header */}
@@ -238,67 +278,82 @@ function RecipesContent() {
       </div>
 
       <form onSubmit={handleIngredientSearch} className="border border-border rounded-lg p-3 mb-6 bg-card">
-        <div className="flex flex-col md:flex-row gap-2">
-          <div className="relative flex-1">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+          <div className="relative flex-1 min-w-[220px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" strokeWidth={1.5} />
             <input
               value={ingredientText}
               onChange={(event) => setIngredientText(event.target.value)}
-              placeholder={searchMode === 'recipes' ? 'Search recipes: pasta, cookies...' : 'Chicken, tomato, rice...'}
+              placeholder={searchMode === 'recipes' ? 'Search recipes or ingredients' : 'Chicken, tomato, rice...'}
               className="w-full pl-9 pr-3 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
             />
           </div>
-          <div className="flex items-center gap-2">
+
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex rounded-md border border-border overflow-hidden bg-background">
+              <button
+                type="button"
+                onClick={() => setSearchMode('ingredients')}
+                className={cn(
+                  'px-3 py-2 text-sm font-medium transition-colors',
+                  searchMode === 'ingredients'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-foreground hover:bg-muted',
+                )}
+              >
+                Ingredients
+              </button>
+              <button
+                type="button"
+                onClick={() => setSearchMode('recipes')}
+                className={cn(
+                  'px-3 py-2 text-sm font-medium transition-colors border-l border-border',
+                  searchMode === 'recipes'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-foreground hover:bg-muted',
+                )}
+              >
+                Recipes
+              </button>
+            </div>
+
+            {searchMode === 'ingredients' && (
+              <select
+                value={matchMode}
+                onChange={(event) => setMatchMode(event.target.value as 'flexible' | 'exact')}
+                className="px-3 py-2.5 text-sm border border-border rounded-md bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              >
+                <option value="flexible">Extras OK</option>
+                <option value="exact">Exact match</option>
+              </select>
+            )}
+
+            <div className="inline-flex rounded-md border border-border overflow-hidden bg-background">
+              <button
+                type="button"
+                onClick={() => { setIngredientText(''); setSearchMode('ingredients'); setTab('suggested'); void usePantrySuggestions() }}
+                className="px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              >
+                Use pantry
+              </button>
+              <button
+                type="button"
+                onClick={handleBrowseAllRecipes}
+                className="px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors border-l border-border"
+              >
+                Browse all
+              </button>
+            </div>
+
             <button
-              type="button"
-              onClick={() => setSearchMode('ingredients')}
-              className={cn(
-                'px-3 py-2 rounded-md text-sm font-medium border transition-colors',
-                searchMode === 'ingredients'
-                  ? 'border-primary bg-primary text-primary-foreground'
-                  : 'border-border text-foreground hover:bg-muted',
-              )}
+              type="submit"
+              disabled={isLoadingSuggestions}
+              className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-md text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-60"
             >
-              By ingredients
-            </button>
-            <button
-              type="button"
-              onClick={() => setSearchMode('recipes')}
-              className={cn(
-                'px-3 py-2 rounded-md text-sm font-medium border transition-colors',
-                searchMode === 'recipes'
-                  ? 'border-primary bg-primary text-primary-foreground'
-                  : 'border-border text-foreground hover:bg-muted',
-              )}
-            >
-              Recipes
+              {isLoadingSuggestions ? <Loader2 className="w-4 h-4 animate-spin" strokeWidth={2} /> : <Search className="w-4 h-4" strokeWidth={2} />}
+              Find recipes
             </button>
           </div>
-          {searchMode === 'ingredients' && (
-            <select
-              value={matchMode}
-              onChange={(event) => setMatchMode(event.target.value as 'flexible' | 'exact')}
-              className="px-3 py-2.5 text-sm border border-border rounded-md bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-            >
-              <option value="flexible">Can include extras</option>
-              <option value="exact">Exact main ingredients</option>
-            </select>
-          )}
-          <button
-            type="submit"
-            disabled={isLoadingSuggestions}
-            className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-md text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-60"
-          >
-            {isLoadingSuggestions ? <Loader2 className="w-4 h-4 animate-spin" strokeWidth={2} /> : <Search className="w-4 h-4" strokeWidth={2} />}
-            Find recipes
-          </button>
-          <button
-            type="button"
-            onClick={() => { setIngredientText(''); setTab('suggested'); void usePantrySuggestions() }}
-            className="px-3 py-2.5 rounded-md border border-border text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-          >
-            Use pantry
-          </button>
         </div>
         {suggestionError && <p className="text-xs text-destructive mt-2">{suggestionError}</p>}
       </form>
@@ -323,7 +378,7 @@ function RecipesContent() {
       <div className="flex flex-wrap gap-2 mb-6">
         <div className="flex items-center gap-1 border border-border rounded-md overflow-hidden text-xs">
           {(['all', 'easy', 'medium', 'hard'] as DifficultyFilter[]).map((d) => (
-            <button key={d} onClick={() => setDiffFilter(d)} className={cn('px-3 py-1.5 capitalize transition-colors', diffFilter === d ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground')}>
+            <button key={d} onClick={() => handleDifficultyChange(d)} className={cn('px-3 py-1.5 capitalize transition-colors', diffFilter === d ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground')}>
               {d === 'all' ? 'Any difficulty' : d}
             </button>
           ))}
@@ -356,7 +411,7 @@ function RecipesContent() {
         </div>
       ) : filtered.length === 0 ? (
         fallbackRecipes && fallbackRecipes.length > 0 ? (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 items-stretch">
               {fallbackRecipes.map((recipe, idx) => (
                 <RecipeCard key={`${recipe.id}-${idx}`} recipe={recipe} onToggleSave={toggleSave} />
               ))}
@@ -364,14 +419,14 @@ function RecipesContent() {
         ) : (
           <EmptyState
             icon={BookOpen}
-            title={tab === 'saved' ? 'No saved recipes' : tab === 'mine' ? 'No recipes created yet' : 'No recipes match filters'}
-            description={tab === 'saved' ? 'Save recipes from the suggestions tab to find them here.' : tab === 'mine' ? 'Create a recipe manually, from a photo, or from a document.' : 'Try adjusting the filters to see more options.'}
+            title={tab === 'saved' ? 'No saved recipes' : tab === 'mine' ? 'No recipes created yet' : 'Loading suggestions…'}
+            description={tab === 'saved' ? 'Save recipes from the suggestions tab to find them here.' : tab === 'mine' ? 'Create a recipe manually, from a photo, or from a document.' : 'Checking your pantry and pulling matching suggestions now.'}
             action={
               tab === 'saved'
                 ? <Link href="/app/recipes" className="text-sm font-medium text-primary hover:underline">Browse suggested recipes</Link>
                 : tab === 'mine'
                   ? <Link href="/app/recipes/new" className="text-sm font-medium text-primary hover:underline">Add a recipe</Link>
-                  : <button type="button" onClick={() => { setDiffFilter('all'); setCostFilter('all'); setMaxTime('any'); void usePantrySuggestions() }} className="text-sm font-medium text-primary hover:underline">Reset filters</button>
+                  : <button type="button" onClick={handleBrowseAllRecipes} className="text-sm font-medium text-primary hover:underline">Browse all recipes</button>
             }
           />
         )
@@ -387,7 +442,7 @@ function RecipesContent() {
               )}
             </div>
           )}
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 items-stretch">
             {pagedRecipes.map((recipe) => (
               <RecipeCard key={recipe.id} recipe={recipe} onToggleSave={toggleSave} />
             ))}

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { normalizeMealToRecipe, splitInstructionsIntoSteps } from '@/lib/recipes/external-source'
 import { computeDifficulty } from '@/lib/recipes/difficulty'
 import { parseImportedRecipeText } from '@/lib/recipes/import'
+import { dedupeRecipes, filterAndScoreRecipes } from '@/lib/recipes/engine'
 
 describe('external recipe normalization', () => {
   it('splits instruction blobs into discrete steps', () => {
@@ -121,5 +122,46 @@ describe('external recipe normalization', () => {
     expect(draft.ingredients).toHaveLength(2)
     expect(draft.steps).toHaveLength(2)
     expect(draft.difficulty).toBe('easy')
+  })
+
+  it('keeps useful recipe suggestions when the pantry only matches a few ingredients', () => {
+    const pantry = [
+      { id: 'p1', name: 'tomato', quantity: 1, unit: 'pcs', expiresAt: new Date('2999-12-31') },
+      { id: 'p2', name: 'onion', quantity: 1, unit: 'pcs', expiresAt: new Date('2999-12-31') },
+    ]
+
+    const recipes = [{
+      id: 'r1',
+      title: 'Tomato onion pasta',
+      description: 'Quick pasta with tomato and onion.',
+      ingredients: [
+        { id: 'i1', name: 'pasta', amount: 200, unit: 'g' },
+        { id: 'i2', name: 'tomato', amount: 2, unit: 'pcs' },
+        { id: 'i3', name: 'onion', amount: 1, unit: 'pcs' },
+        { id: 'i4', name: 'garlic', amount: 2, unit: 'cloves' },
+        { id: 'i5', name: 'olive oil', amount: 1, unit: 'tbsp' },
+      ],
+      prepTimeMinutes: 10,
+      cookTimeMinutes: 15,
+      difficulty: 'easy',
+      costLevel: 'low',
+    }]
+
+    const results = filterAndScoreRecipes(pantry, recipes, { minMatchPercentage: 0.12, maxMissingRequired: 10 })
+
+    expect(results).toHaveLength(1)
+    expect(results[0].matchedIngredients).toHaveLength(2)
+    expect(results[0].missingIngredients).toHaveLength(3)
+  })
+
+  it('removes duplicate recipe entries before rendering suggestions', () => {
+    const recipes = [
+      { id: 'recipe-1', title: 'Seafood rice', description: '', ingredients: [], prepTimeMinutes: 20, cookTimeMinutes: 20, difficulty: 'easy', costLevel: 'low' },
+      { id: 'recipe-1', title: 'Seafood rice', description: '', ingredients: [], prepTimeMinutes: 20, cookTimeMinutes: 20, difficulty: 'easy', costLevel: 'low' },
+      { id: 'recipe-2', title: 'Tomato pasta', description: '', ingredients: [], prepTimeMinutes: 15, cookTimeMinutes: 10, difficulty: 'easy', costLevel: 'low' },
+    ] as any
+
+    expect(dedupeRecipes(recipes)).toHaveLength(2)
+    expect(dedupeRecipes(recipes).map((recipe) => recipe.id)).toEqual(['recipe-1', 'recipe-2'])
   })
 })

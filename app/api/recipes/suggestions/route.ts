@@ -4,7 +4,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { fetchRandomMeals, searchRecipesByIngredients } from '@/lib/recipes/external-source'
 import { isStapleIngredient, normalizeFoodName, parseIngredientList } from '@/lib/recipes/enrich'
-import { filterAndScoreRecipes, type PantryItem, type Recipe } from '@/lib/recipes/engine'
+import { dedupeRecipes, filterAndScoreRecipes, type PantryItem, type Recipe } from '@/lib/recipes/engine'
 import { isDbAvailable, reportDbFailure, markDbSuccess } from '@/lib/dbCircuit'
 
 const querySchema = z.object({
@@ -254,8 +254,10 @@ export async function GET(request: Request) {
       console.error('[recipes:suggestions] external search failed', err)
     }
 
+    const dedupedRecipes = dedupeRecipes(recipes)
+
     const scoredSuggestions = searchMode === 'recipes'
-      ? recipes.map((recipe) => ({
+      ? dedupedRecipes.map((recipe) => ({
         recipe,
         matchPercentage: 1,
         score: 100,
@@ -263,9 +265,9 @@ export async function GET(request: Request) {
         missingIngredients: [],
         expiringItemsUsedCount: 0,
       }))
-      : filterAndScoreRecipes(pantryForMatching, recipes, {
-        minMatchPercentage: 0.35,
-        maxMissingRequired: 4,
+      : filterAndScoreRecipes(pantryForMatching, dedupedRecipes, {
+        minMatchPercentage: 0.12,
+        maxMissingRequired: 10,
         boostExpiringDays: 3,
       })
 
