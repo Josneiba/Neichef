@@ -1,11 +1,13 @@
 'use client'
 
-import { use, useEffect, useState } from 'react'
+import { use, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { useRecipe, useShoppingList } from '@/lib/hooks'
+import { useRouter } from 'next/navigation'
+import { usePantry, useRecipe, useShoppingList } from '@/lib/hooks'
 import { useT } from '@/lib/i18n'
-import { ArrowLeft, Bookmark, BookmarkCheck, ChefHat, Check, AlertCircle, Loader2, ListPlus } from 'lucide-react'
+import { ArrowLeft, Bookmark, BookmarkCheck, ChefHat, Check, AlertCircle, Loader2, ListPlus, Minus, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { consumeRecipeFromPantry, scaleIngredientAmount } from '@/lib/recipes/servings'
 
 const recipeImages: Record<string, string> = {
   r1: '/recipe-chicken.png',
@@ -20,11 +22,23 @@ const difficultyLabel: Record<string, string> = { easy: 'Easy', medium: 'Interme
 export default function RecipeDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const { recipe, isLoading, error, toggleSave } = useRecipe(id)
+  const { items: pantryItems, updateItem, removeItem } = usePantry()
   const { addItems } = useShoppingList()
   const t = useT()
+  const router = useRouter()
   const [nutrition, setNutrition] = useState<{ calories: number; protein: number; carbs: number; fat: number; sugars: number; matchedIngredients: number; note: string } | null>(null)
   const [isAddingMissing, setIsAddingMissing] = useState(false)
   const [justAdded, setJustAdded] = useState(false)
+  const [peopleCount, setPeopleCount] = useState(2)
+
+  const scaledIngredients = useMemo(() => {
+    if (!recipe) return []
+    const multiplier = recipe.servings > 0 ? peopleCount / recipe.servings : 1
+    return recipe.ingredients.map((ing) => ({
+      ...ing,
+      scaledAmount: Number((ing.amount * multiplier).toFixed(4)),
+    }))
+  }, [peopleCount, recipe])
 
   useEffect(() => {
     if (!recipe) return
@@ -69,6 +83,23 @@ export default function RecipeDetailPage({ params }: { params: Promise<{ id: str
   const missingIngredients = recipe.ingredients.filter((i) => !i.inPantry && !i.isStaple)
   const matchRatio = recipe.pantryMatchCount / Math.max(recipe.totalIngredients, 1)
   const methodText = recipe.steps.map((step) => step.instruction).filter(Boolean).join(' ')
+
+  async function handleStartCooking() {
+    if (!recipe) return
+    const updatedPantry = consumeRecipeFromPantry(pantryItems, recipe.ingredients, peopleCount, recipe.servings)
+    await Promise.all(updatedPantry.map(async (item) => {
+      const original = pantryItems.find((entry) => entry.id === item.id)
+      if (!original) return
+      if (item.quantity <= 0) {
+        await removeItem(item.id)
+        return
+      }
+      if (Math.abs(original.quantity - item.quantity) > 0.001) {
+        await updateItem(item.id, { quantity: item.quantity })
+      }
+    }))
+    router.push(`/app/recipes/${recipe.id}/cook`)
+  }
 
   async function handleAddMissingToList() {
     if (!missingIngredients.length) return
@@ -142,6 +173,34 @@ export default function RecipeDetailPage({ params }: { params: Promise<{ id: str
           ))}
         </div>
 
+        <div className="mb-6 rounded-lg border border-border bg-card p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-foreground">How many people are eating?</p>
+              <p className="text-xs text-muted-foreground">This scales the ingredient amounts automatically.</p>
+            </div>
+            <div className="flex items-center gap-2 rounded-md border border-border bg-background px-2 py-1.5">
+              <button
+                type="button"
+                onClick={() => setPeopleCount((value) => Math.max(1, value - 1))}
+                className="flex h-7 w-7 items-center justify-center rounded-sm hover:bg-muted"
+                aria-label="Decrease people count"
+              >
+                <Minus className="h-4 w-4" strokeWidth={1.5} />
+              </button>
+              <span className="min-w-10 text-center text-sm font-medium text-foreground">{peopleCount}</span>
+              <button
+                type="button"
+                onClick={() => setPeopleCount((value) => value + 1)}
+                className="flex h-7 w-7 items-center justify-center rounded-sm hover:bg-muted"
+                aria-label="Increase people count"
+              >
+                <Plus className="h-4 w-4" strokeWidth={1.5} />
+              </button>
+            </div>
+          </div>
+        </div>
+
         {/* Pantry match */}
         <div className="bg-muted rounded-lg p-4 mb-6">
           <div className="flex items-center justify-between mb-2">
@@ -197,7 +256,7 @@ export default function RecipeDetailPage({ params }: { params: Promise<{ id: str
         <div className="mb-8">
           <h2 className="font-serif text-xl text-foreground mb-4">Ingredients</h2>
           <div className="grid gap-2 sm:grid-cols-2">
-            {recipe.ingredients.map((ing, index) => (
+            {scaledIngredients.map((ing, index) => (
               <div key={`${ing.name}-${index}`} className={cn('flex items-start gap-2 rounded-md border p-2.5', ing.inPantry ? 'border-[oklch(0.82_0.06_145)] bg-[oklch(0.98_0.015_145)]' : 'border-[oklch(0.86_0.05_25)] bg-[oklch(0.985_0.012_25)]')}>
                 <div className={cn('w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 mt-0.5', ing.inPantry ? 'bg-[oklch(0.32_0.08_145)] border-[oklch(0.32_0.08_145)]' : 'border-[oklch(0.7_0.1_25)] bg-transparent')}>
                   {ing.inPantry
@@ -207,7 +266,7 @@ export default function RecipeDetailPage({ params }: { params: Promise<{ id: str
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className={cn('text-xs font-medium leading-snug', ing.inPantry ? 'text-foreground' : 'text-[oklch(0.42_0.1_25)]')}>
-                    {ing.amount} {ing.unit} {ing.name}
+                    {scaleIngredientAmount(ing.amount, peopleCount / Math.max(recipe.servings, 1))} {ing.unit} {ing.name}
                     {!ing.inPantry && !ing.isStaple && <span className="ml-1 font-normal text-muted-foreground">- not in pantry</span>}
                     {ing.isStaple && <span className="ml-1 font-normal text-muted-foreground">- staple</span>}
                   </p>
@@ -231,13 +290,14 @@ export default function RecipeDetailPage({ params }: { params: Promise<{ id: str
 
         {/* Cook Mode CTA */}
         <div className="sticky bottom-6 mt-8">
-          <Link
-            href={`/app/recipes/${recipe.id}/cook`}
+          <button
+            type="button"
+            onClick={() => void handleStartCooking()}
             className="flex items-center justify-center gap-2 w-full bg-primary text-primary-foreground py-4 rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors shadow-lg"
           >
             <ChefHat className="w-4 h-4" strokeWidth={1.5} />
             Start Cook Mode
-          </Link>
+          </button>
         </div>
       </div>
     </div>

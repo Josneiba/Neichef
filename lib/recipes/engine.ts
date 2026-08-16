@@ -114,42 +114,40 @@ export function filterAndScoreRecipes(
   return results.sort((a, b) => b.score - a.score)
 }
 
-export function dedupeRecipes<T extends { id?: string; title?: string }>(recipes: T[]): T[] {
-  const seen = new Map<string, T>()
+export function dedupeRecipes<T extends { id?: string; title?: string; ingredients?: Array<{ name?: string }> }>(recipes: T[]): T[] {
+  const seen = new Set<string>()
+  const unique: T[] = []
+
+  const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
 
   for (const recipe of recipes) {
-    const id = String(recipe?.id ?? '').trim()
-    const title = String(recipe?.title ?? '').trim().toLowerCase()
-    const key = id || title || `${Math.random()}`
+    const rawId = String(recipe?.id ?? '').trim().replace(/^external-/, '')
+    const title = String(recipe?.title ?? '').trim()
+    const normalizedTitle = normalize(title)
+    const ingredientKey = Array.isArray(recipe?.ingredients)
+      ? recipe.ingredients
+          .map((ingredient) => ingredient?.name ?? '')
+          .filter(Boolean)
+          .map((name) => normalize(name))
+          .sort()
+          .join('|')
+      : ''
 
-    if (!seen.has(key)) {
-      seen.set(key, recipe)
+    const signatures = [
+      rawId ? `id:${rawId}` : '',
+      normalizedTitle ? `title:${normalizedTitle}` : '',
+      normalizedTitle && ingredientKey ? `title-ingredients:${normalizedTitle}|${ingredientKey}` : '',
+    ].filter(Boolean)
+
+    if (signatures.some((signature) => seen.has(signature))) {
       continue
     }
 
-    const existing = seen.get(key)
-    if (!existing) continue
-
-    const existingTitle = String(existing?.title ?? '').trim().toLowerCase()
-    const existingId = String(existing?.id ?? '').trim()
-
-    if (!existingId && existingTitle && title && existingTitle === title) {
-      continue
-    }
-
-    if (!existingId && id && existingTitle && title && existingTitle === title) {
-      continue
-    }
-
-    if (id && existingId && existingId === id) {
-      continue
-    }
-
-    const fallbackKey = `${title || 'untitled'}:${String(recipe?.description ?? '')}`
-    if (!seen.has(fallbackKey)) seen.set(fallbackKey, recipe)
+    unique.push(recipe)
+    for (const signature of signatures) seen.add(signature)
   }
 
-  return Array.from(seen.values())
+  return unique
 }
 
 export function prioritizeForHome(pantry: PantryItem[], recipes: Recipe[], limit = 3) {

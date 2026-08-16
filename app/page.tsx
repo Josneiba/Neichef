@@ -149,7 +149,7 @@ export default function LandingPage() {
                   <div>
                     <p className="text-xs font-medium text-foreground leading-snug">Items expiring soon</p>
                     <p className="text-[10px] text-muted-foreground mt-0.5">Find recipes using them</p>
-                    <a href="/recipes/suggestions?urgency=expiring" className="mt-2 inline-block text-xs text-primary underline">See suggestions</a>
+                    <a href="/app/recipes" className="mt-2 inline-block text-xs text-primary underline">See suggestions</a>
                   </div>
                 </div>
               </div>

@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { prisma } from '@/lib/prisma'
 import { ingredientMatchesPantry } from '@/lib/recipes/enrich'
 import { estimateExpiryDate } from '@/lib/pantry/expiration'
+import { formatPantryQuantity, groupPantryStock } from '@/lib/pantry/calculate-stock'
+import { consumeRecipeFromPantry, scaleIngredientAmount, servingsMultiplier } from '@/lib/recipes/servings'
 
 const mockGeminiWithText = vi.fn()
 const mockOpenAIWithText = vi.fn()
@@ -230,5 +232,45 @@ describe('API route protection and pantry logic', () => {
     expect(ingredientMatchesPantry('black beans', 'black beans')).toBe(true)
     expect(ingredientMatchesPantry('beans', 'black beans')).toBe(true)
     expect(ingredientMatchesPantry('salmon', 'salmon fillet')).toBe(true)
+  })
+
+  it('formats weight-based pantry quantities in a readable way', () => {
+    expect(formatPantryQuantity(1000, 'g')).toBe('1 kg')
+    expect(formatPantryQuantity(1500, 'g')).toBe('1.5 kg')
+    expect(formatPantryQuantity(500, 'g')).toBe('500 g')
+    expect(formatPantryQuantity(2, 'bags')).toBe('2 bags')
+  })
+
+  it('groups matching pantry entries into a combined stock total while keeping the original bags visible', () => {
+    const grouped = groupPantryStock([
+      { id: '1', name: 'rice', quantity: 1000, unit: 'g', category: 'grains', location: 'pantry', expirationDate: '2026-08-20', urgency: 'fresh' },
+      { id: '2', name: 'rice', quantity: 500, unit: 'g', category: 'grains', location: 'pantry', expirationDate: '2026-08-25', urgency: 'fresh' },
+      { id: '3', name: 'pasta', quantity: 400, unit: 'g', category: 'grains', location: 'pantry', expirationDate: '2026-09-10', urgency: 'fresh' },
+    ] as any)
+
+    expect(grouped).toHaveLength(2)
+    expect(grouped[0].name).toBe('rice')
+    expect(grouped[0].totalQuantity).toBe(1500)
+    expect(grouped[0].displayLabel).toBe('1.5 kg')
+    expect(grouped[0].entries).toHaveLength(2)
+  })
+
+  it('scales ingredient needs by selected servings and reduces pantry stock accordingly', () => {
+    expect(servingsMultiplier(4, 2)).toBe(2)
+    expect(scaleIngredientAmount(300, 2)).toBe(600)
+
+    const pantry = [
+      { id: 'rice-1', name: 'rice', quantity: 1500, unit: 'g', category: 'grains', location: 'pantry', expirationDate: '2026-10-01', urgency: 'fresh' },
+      { id: 'milk-1', name: 'milk', quantity: 1, unit: 'L', category: 'dairy', location: 'fridge', expirationDate: '2026-08-20', urgency: 'fresh' },
+    ] as any
+
+    const remaining = consumeRecipeFromPantry(pantry, [
+      { name: 'rice', amount: 300, unit: 'g', inPantry: true },
+      { name: 'milk', amount: 0.5, unit: 'L', inPantry: true },
+    ], 4, 2)
+
+    expect(remaining).toHaveLength(1)
+    expect(remaining[0].name).toBe('rice')
+    expect(remaining[0].quantity).toBe(900)
   })
 })

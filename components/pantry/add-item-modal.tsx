@@ -14,6 +14,7 @@ type AddMode = 'manual' | 'manual_text' | 'photo' | 'barcode' | 'receipt'
 
 interface AddItemModalProps {
   onClose: () => void
+  onItemAdded?: () => void
   initialMode?: AddMode
 }
 
@@ -154,7 +155,7 @@ function ReviewList({ items, onChange }: { items: ReviewItem[]; onChange: (items
   )
 }
 
-export function AddItemModal({ onClose, initialMode = 'manual' }: AddItemModalProps) {
+export function AddItemModal({ onClose, onItemAdded, initialMode = 'manual' }: AddItemModalProps) {
   const { addItem } = usePantry()
   const [mode, setMode] = useState<AddMode>(initialMode)
 
@@ -176,7 +177,8 @@ export function AddItemModal({ onClose, initialMode = 'manual' }: AddItemModalPr
     e.preventDefault()
     if (!name || !quantity || !expiry) return
     addItem({ name, quantity: Number(quantity), unit, category, location, expirationDate: expiry || defaultExpiryDate(category, name) })
-    onClose()
+      .then(() => onItemAdded?.())
+      .finally(() => onClose())
   }
 
   async function handleParseManualText() {
@@ -244,6 +246,7 @@ export function AddItemModal({ onClose, initialMode = 'manual' }: AddItemModalPr
           }),
         ),
       )
+      onItemAdded?.()
       onClose()
     } catch (error) {
       setManualTextError(error instanceof Error ? error.message : 'Could not save parsed pantry items.')
@@ -318,6 +321,7 @@ export function AddItemModal({ onClose, initialMode = 'manual' }: AddItemModalPr
           }),
         ),
       )
+      onItemAdded?.()
       onClose()
     } catch (error) {
       setPhotoError(error instanceof Error ? error.message : 'Could not save detected ingredients.')
@@ -445,7 +449,7 @@ export function AddItemModal({ onClose, initialMode = 'manual' }: AddItemModalPr
       category: scannedProduct.category,
       location: 'pantry',
       expirationDate: defaultExpiryDate(category, name),
-    })
+    }).then(() => onItemAdded?.())
     onClose()
   }
 
@@ -516,6 +520,7 @@ export function AddItemModal({ onClose, initialMode = 'manual' }: AddItemModalPr
           }),
         ),
       )
+      onItemAdded?.()
 
       // Send price data to ingestion pipeline if available (non-blocking)
       try {

@@ -91,7 +91,7 @@ export function usePantry() {
   const expiringCount = items.filter((i) => i.urgency === 'expiring').length
   const expiredCount = items.filter((i) => i.urgency === 'expired').length
 
-  return { items, addItem, removeItem, updateItem, getByUrgency, getByCategory, getByLocation, expiringCount, expiredCount }
+  return { items, addItem, removeItem, updateItem, refreshItems, getByUrgency, getByCategory, getByLocation, expiringCount, expiredCount }
 }
 
 export function useRecipes() {

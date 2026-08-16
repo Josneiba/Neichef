@@ -9,20 +9,19 @@ import { AddItemModal } from '@/components/pantry/add-item-modal'
 import { PantryFilters } from '@/components/pantry/pantry-filters'
 import { cn } from '@/lib/utils'
 import { Package, Plus, Grid2X2, List, Trash2 } from 'lucide-react'
-import { inventorySummary } from '@/lib/pantry/calculate-stock'
-import { detectDuplicatePantryItems } from '@/lib/pantry/detect-duplicates'
+import { formatPantryQuantity, groupPantryStock, inventorySummary } from '@/lib/pantry/calculate-stock'
 import { STORAGE_LOCATIONS } from '@/lib/pantry/storage'
 import type { Category, ItemUrgency, StorageLocation } from '@/lib/types'
 
 type ViewMode = 'list' | 'grid'
 
 export default function PantryPage() {
-  const { items, removeItem, updateItem } = usePantry()
+  const { items, removeItem, updateItem, refreshItems } = usePantry()
   const t = useT()
   const [viewMode, setViewMode] = useState<ViewMode>('list')
   const [showAdd, setShowAdd] = useState(false)
   const inventoryStats = useMemo(() => inventorySummary(items), [items])
-  const duplicateGroups = useMemo(() => detectDuplicatePantryItems(items), [items])
+  const groupedItems = useMemo(() => groupPantryStock(items), [items])
   const storageLabels = useMemo(
     () => Object.fromEntries(STORAGE_LOCATIONS.map((location) => [location.value, location.label])) as Record<StorageLocation, string>,
     [],
@@ -49,27 +48,6 @@ export default function PantryPage() {
     const diff = Math.ceil((exp.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
     return diff >= 0 && diff <= 2
   }), [items])
-
-  async function mergeDuplicateGroup(group: { items: typeof items }) {
-    if (group.items.length < 2) return
-    const [primary, ...rest] = group.items
-    const mergedQuantity = group.items.reduce((sum, item) => sum + item.quantity, 0)
-    const primaryExpiry = new Date(primary.expirationDate)
-    const earliestExpiry = group.items.reduce((earliest, item) => {
-      const itemDate = new Date(item.expirationDate)
-      return itemDate < earliest ? itemDate : earliest
-    }, primaryExpiry)
-
-    await updateItem(primary.id, {
-      quantity: mergedQuantity,
-      expirationDate: earliestExpiry.toISOString().split('T')[0],
-    })
-    await Promise.all(rest.map((item) => removeItem(item.id)))
-  }
-
-  async function deleteDuplicateGroup(group: { items: typeof items }) {
-    await Promise.all(group.items.map((item) => removeItem(item.id)))
-  }
 
   return (
     <div className="px-6 py-8 max-w-5xl mx-auto pb-24 lg:pb-8">
@@ -98,7 +76,7 @@ export default function PantryPage() {
               <p className="text-xs text-rose-700/80">Cook something now to avoid waste — we prioritized recipes that use these ingredients.</p>
             </div>
             <div className="flex items-center gap-2">
-              <a href="/recipes/suggestions?urgency=expiring" className="inline-flex items-center gap-2 bg-rose-600 text-white px-3 py-2 rounded-md text-sm">Find recipes</a>
+              <a href="/app/recipes" className="inline-flex items-center gap-2 bg-rose-600 text-white px-3 py-2 rounded-md text-sm">Find recipes</a>
               <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="text-sm text-rose-700 underline">Later</button>
             </div>
           </div>
@@ -119,33 +97,10 @@ export default function PantryPage() {
           <p className="mt-2 text-3xl font-semibold text-foreground">{inventoryStats.lowStockCount}</p>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">{t('duplicateGroups')}</p>
-          <p className="mt-2 text-3xl font-semibold text-foreground">{duplicateGroups.length}</p>
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">{t('itemsTotal')}</p>
+          <p className="mt-2 text-3xl font-semibold text-foreground">{groupedItems.length}</p>
         </div>
       </div>
-
-      {duplicateGroups.length > 0 && (
-        <div className="mb-6 rounded-2xl border border-amber-300/30 bg-[oklch(0.98_0.10_95)] p-4">
-          <p className="text-sm font-semibold text-foreground">{t('duplicatePantryItems')}</p>
-          <p className="text-xs text-muted-foreground mt-1">{t('duplicatePantryItemsDescription')}</p>
-          <div className="mt-4 grid gap-2 sm:grid-cols-2">
-            {duplicateGroups.slice(0, 3).map((group) => (
-              <div key={group.normalizedName} className="rounded-xl border border-border bg-card p-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="text-sm font-medium text-foreground">{group.normalizedName}</p>
-                    <p className="text-xs text-muted-foreground mt-1">{group.items.length} {t('similarItems')}</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <button type="button" onClick={() => void mergeDuplicateGroup(group)} className="text-xs font-medium text-primary hover:underline">Merge</button>
-                    <button type="button" onClick={() => void deleteDuplicateGroup(group)} className="text-xs font-medium text-destructive hover:underline">Delete</button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Urgency summary */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
@@ -242,32 +197,26 @@ export default function PantryPage() {
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide w-24">Status</p>
           </div>
           <div className="divide-y divide-border">
-            {filtered.map((item) => {
-              const exp = new Date(item.expirationDate)
+            {groupedItems.map((group) => {
+              const primaryItem = group.entries[0]
+              const exp = new Date(primaryItem.expirationDate)
               const today = new Date()
               const diff = Math.ceil((exp.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
               const expLabel = diff < 0 ? `${Math.abs(diff)}d ago` : diff === 0 ? 'Today' : `${exp.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`
+
               return (
-                <div
-                  key={item.id}
-                  className="flex md:grid md:grid-cols-[1fr_auto_auto_auto_auto] md:gap-4 items-center px-5 py-3.5 hover:bg-muted/30 transition-colors group"
-                >
+                <div key={group.key} className="flex md:grid md:grid-cols-[1fr_auto_auto_auto_auto] md:gap-4 items-center px-5 py-3.5 hover:bg-muted/30 transition-colors">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5 capitalize">{item.category}</p>
+                    <p className="text-sm font-medium text-foreground truncate">{group.name}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 capitalize">{group.category}</p>
                   </div>
-                  <p className="text-sm text-muted-foreground w-20 hidden md:block">{item.quantity} {item.unit}</p>
-                  <p className="text-sm text-muted-foreground w-20 hidden md:block">{storageLabels[item.location] ?? item.location}</p>
+                  <div className="w-28 hidden md:flex justify-center">
+                    <span className="text-sm text-foreground">{group.displayLabel}</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground w-20 hidden md:block">{storageLabels[primaryItem.location] ?? primaryItem.location}</p>
                   <p className="text-sm text-muted-foreground w-28 hidden md:block">{expLabel}</p>
-                  <div className="flex items-center gap-2 md:w-24">
-                    <UrgencyBadge urgency={item.urgency} daysUntilExpiry={diff > 0 ? diff : undefined} />
-                    <button
-                      onClick={() => void removeItem(item.id)}
-                      className="opacity-100 md:opacity-0 md:group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-all ml-1"
-                      aria-label="Remove item"
-                    >
-                      <Trash2 className="h-4 w-4" strokeWidth={1.5} />
-                    </button>
+                  <div className="flex items-center justify-end md:w-24">
+                    <UrgencyBadge urgency={primaryItem.urgency} daysUntilExpiry={diff > 0 ? diff : undefined} />
                   </div>
                 </div>
               )
@@ -276,36 +225,40 @@ export default function PantryPage() {
         </div>
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map((item) => {
-            const exp = new Date(item.expirationDate)
+          {groupedItems.map((group) => {
+            const primaryItem = group.entries[0]
+            const exp = new Date(primaryItem.expirationDate)
             const today = new Date()
             const diff = Math.ceil((exp.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
             const expLabel = diff < 0 ? `Expired ${Math.abs(diff)}d ago` : diff === 0 ? 'Expires today' : `Expires ${exp.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`
             return (
               <div
-                key={item.id}
-                className="bg-card border border-border rounded-xl p-4 hover:border-muted-foreground/30 transition-colors group"
+                key={group.key}
+                className="group bg-card border border-border rounded-xl p-4 hover:border-muted-foreground/30 transition-colors"
               >
-                <div className="flex items-start justify-between mb-3">
+                <div className="flex items-start justify-between mb-3 gap-2">
                   <div className="flex-1 min-w-0 mr-2">
-                    <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
-                    <p className="text-xs text-muted-foreground capitalize mt-0.5">{item.category}</p>
+                    <p className="text-sm font-medium text-foreground truncate">{group.name}</p>
+                    <p className="text-xs text-muted-foreground capitalize mt-0.5">{group.category}</p>
                   </div>
                   <button
-                    onClick={() => void removeItem(item.id)}
-                    className="opacity-100 md:opacity-0 md:group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-all flex-shrink-0"
-                    aria-label="Remove item"
+                    onClick={() => void Promise.all(group.entries.map((entry) => removeItem(entry.id)))}
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                    aria-label={`Remove ${group.name}`}
                   >
                     <Trash2 className="h-4 w-4" strokeWidth={1.5} />
                   </button>
                 </div>
                 <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs text-muted-foreground">{item.quantity} {item.unit} · <span>{storageLabels[item.location] ?? item.location}</span></p>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-left">
+                      <div className="text-sm font-medium text-foreground">{group.displayLabel}</div>
+                    </div>
+                    <p className="text-xs text-muted-foreground"><span>{storageLabels[primaryItem.location] ?? primaryItem.location}</span></p>
                   </div>
                   <p className="text-xs text-muted-foreground">{expLabel}</p>
                   <div className="pt-1">
-                    <UrgencyBadge urgency={item.urgency} daysUntilExpiry={diff > 0 ? diff : undefined} />
+                    <UrgencyBadge urgency={primaryItem.urgency} daysUntilExpiry={diff > 0 ? diff : undefined} />
                   </div>
                 </div>
               </div>
@@ -315,7 +268,7 @@ export default function PantryPage() {
       )}
 
       {/* Add item modal */}
-      {showAdd && <AddItemModal initialMode={addMode} onClose={() => setShowAdd(false)} />}
+      {showAdd && <AddItemModal initialMode={addMode} onClose={() => { setShowAdd(false); void refreshItems() }} onItemAdded={() => void refreshItems()} />}
     </div>
   )
 }

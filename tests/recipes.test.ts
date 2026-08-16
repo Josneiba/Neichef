@@ -156,12 +156,14 @@ describe('external recipe normalization', () => {
 
   it('removes duplicate recipe entries before rendering suggestions', () => {
     const recipes = [
-      { id: 'recipe-1', title: 'Seafood rice', description: '', ingredients: [], prepTimeMinutes: 20, cookTimeMinutes: 20, difficulty: 'easy', costLevel: 'low' },
-      { id: 'recipe-1', title: 'Seafood rice', description: '', ingredients: [], prepTimeMinutes: 20, cookTimeMinutes: 20, difficulty: 'easy', costLevel: 'low' },
-      { id: 'recipe-2', title: 'Tomato pasta', description: '', ingredients: [], prepTimeMinutes: 15, cookTimeMinutes: 10, difficulty: 'easy', costLevel: 'low' },
+      { id: 'recipe-1', title: 'Seafood rice', description: '', ingredients: [{ name: 'rice' }, { name: 'shrimp' }], prepTimeMinutes: 20, cookTimeMinutes: 20, difficulty: 'easy', costLevel: 'low' },
+      { id: 'external-99', title: 'Seafood rice', description: '', ingredients: [{ name: 'rice' }, { name: 'shrimp' }], prepTimeMinutes: 20, cookTimeMinutes: 20, difficulty: 'easy', costLevel: 'low' },
+      { id: 'recipe-2', title: 'Tomato pasta', description: '', ingredients: [{ name: 'pasta' }, { name: 'tomato' }], prepTimeMinutes: 15, cookTimeMinutes: 10, difficulty: 'easy', costLevel: 'low' },
     ] as any
 
-    expect(dedupeRecipes(recipes)).toHaveLength(2)
-    expect(dedupeRecipes(recipes).map((recipe) => recipe.id)).toEqual(['recipe-1', 'recipe-2'])
+    const deduped = dedupeRecipes(recipes)
+
+    expect(deduped).toHaveLength(2)
+    expect(deduped.map((recipe) => recipe.id)).toEqual(['recipe-1', 'recipe-2'])
   })
 })
