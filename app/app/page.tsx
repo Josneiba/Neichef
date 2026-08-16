@@ -122,9 +122,9 @@ export default function DashboardPage() {
       {/* Pantry summary */}
       <div className="grid grid-cols-3 gap-3 mb-6">
         {[
-          { label: 'Fresh', count: freshCount, color: 'bg-[oklch(0.92_0.04_145)]', textColor: 'text-[oklch(0.28_0.08_145)]', subColor: 'text-[oklch(0.38_0.07_145)]' },
-          { label: 'Expiring', count: expiringCount, color: 'bg-[oklch(0.94_0.07_75)]', textColor: 'text-[oklch(0.42_0.10_55)]', subColor: 'text-[oklch(0.48_0.08_60)]' },
-          { label: 'Expired', count: expiredCount, color: 'bg-[oklch(0.93_0.05_25)]', textColor: 'text-[oklch(0.42_0.15_25)]', subColor: 'text-[oklch(0.48_0.12_25)]' },
+          { label: t('fresh'), count: freshCount, color: 'bg-[oklch(0.92_0.04_145)]', textColor: 'text-[oklch(0.28_0.08_145)]', subColor: 'text-[oklch(0.38_0.07_145)]' },
+          { label: t('expiring'), count: expiringCount, color: 'bg-[oklch(0.94_0.07_75)]', textColor: 'text-[oklch(0.42_0.10_55)]', subColor: 'text-[oklch(0.48_0.08_60)]' },
+          { label: t('expired'), count: expiredCount, color: 'bg-[oklch(0.93_0.05_25)]', textColor: 'text-[oklch(0.42_0.15_25)]', subColor: 'text-[oklch(0.48_0.12_25)]' },
         ].map(({ label, count, color, textColor, subColor }) => (
           <Link key={label} href="/app/pantry" className={cn('rounded-xl p-4 transition-opacity hover:opacity-90', color)}>
             <p className={cn('font-serif text-3xl', textColor)}>{count}</p>
@@ -142,10 +142,10 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <Package className="w-4 h-4 text-muted-foreground" strokeWidth={1.5} />
-                <h2 className="font-serif text-base text-foreground">Use first</h2>
+                <h2 className="font-serif text-base text-foreground">{t('useFirst')}</h2>
               </div>
               <Link href="/app/pantry" className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
-                All items <ArrowRight className="w-3 h-3" />
+                {t('allItems')} <ArrowRight className="w-3 h-3" />
               </Link>
             </div>
             <div className="space-y-2">
@@ -179,10 +179,10 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <BookOpen className="w-4 h-4 text-muted-foreground" strokeWidth={1.5} />
-                <h2 className="font-serif text-base text-foreground">Suggested recipes</h2>
+                <h2 className="font-serif text-base text-foreground">{t('suggestedRecipes')}</h2>
               </div>
               <Link href="/app/recipes" className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
-                All recipes <ArrowRight className="w-3 h-3" />
+                {t('allRecipes')} <ArrowRight className="w-3 h-3" />
               </Link>
             </div>
             <div className="space-y-3">

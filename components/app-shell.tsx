@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { useT } from '@/lib/i18n'
+import { useTranslation, useT } from '@/lib/i18n'
 import {
   LayoutDashboard,
   Package,
@@ -48,6 +48,7 @@ interface AppShellProps {
 export function AppShell({ children, unreadCount = 0, notifications = [], markRead, markAllRead }: AppShellProps) {
   const pathname = usePathname()
   const t = useT()
+  const { locale, setLocale } = useTranslation()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [alertsOpen, setAlertsOpen] = useState(false)
   const recentNotifications = notifications.slice(0, 6)
@@ -116,7 +117,18 @@ export function AppShell({ children, unreadCount = 0, notifications = [], markRe
           <Link href="/" className="flex items-center gap-2.5">
             <span className="font-serif text-xl text-sidebar-foreground tracking-tight">NeiChef</span>
           </Link>
-          <AlertsButton />
+          <div className="flex items-center gap-2">
+            <select
+              aria-label="Language switcher"
+              value={locale}
+              onChange={(event) => setLocale(event.target.value as 'en' | 'es')}
+              className="rounded-md border border-sidebar-border bg-sidebar-accent px-2 py-1 text-xs text-sidebar-foreground outline-none"
+            >
+              <option value="en">EN</option>
+              <option value="es">ES</option>
+            </select>
+            <AlertsButton />
+          </div>
         </div>
 
         {/* Nav items */}
@@ -149,6 +161,15 @@ export function AppShell({ children, unreadCount = 0, notifications = [], markRe
             NeiChef
           </Link>
           <div className="flex items-center gap-3">
+            <select
+              aria-label="Language switcher"
+              value={locale}
+              onChange={(event) => setLocale(event.target.value as 'en' | 'es')}
+              className="rounded-md border border-sidebar-border bg-sidebar-accent px-2 py-1 text-[10px] text-sidebar-foreground outline-none"
+            >
+              <option value="en">EN</option>
+              <option value="es">ES</option>
+            </select>
             <AlertsButton />
             <button
               onClick={() => setMobileOpen(!mobileOpen)}

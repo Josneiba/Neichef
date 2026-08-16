@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { usePantry } from '@/lib/hooks'
-import { useT } from '@/lib/i18n'
+import { useT, useTranslation } from '@/lib/i18n'
 import { UrgencyBadge } from '@/components/ui/urgency-badge'
 import { EmptyState } from '@/components/ui/empty-state'
 import { AddItemModal } from '@/components/pantry/add-item-modal'
@@ -18,6 +18,7 @@ type ViewMode = 'list' | 'grid'
 export default function PantryPage() {
   const { items, removeItem, updateItem, refreshItems } = usePantry()
   const t = useT()
+  const { locale } = useTranslation()
   const [viewMode, setViewMode] = useState<ViewMode>('list')
   const [showAdd, setShowAdd] = useState(false)
   const inventoryStats = useMemo(() => inventorySummary(items), [items])
@@ -202,7 +203,13 @@ export default function PantryPage() {
               const exp = new Date(primaryItem.expirationDate)
               const today = new Date()
               const diff = Math.ceil((exp.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-              const expLabel = diff < 0 ? `${Math.abs(diff)}d ago` : diff === 0 ? 'Today' : `${exp.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`
+              const expLabel = diff < 0
+                ? t('expiredAgo').replace('{days}', String(Math.abs(diff)))
+                : diff === 0
+                  ? t('today')
+                  : locale === 'es'
+                    ? exp.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
+                    : exp.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
 
               return (
                 <div key={group.key} className="flex md:grid md:grid-cols-[1fr_auto_auto_auto_auto] md:gap-4 items-center px-5 py-3.5 hover:bg-muted/30 transition-colors">
@@ -230,7 +237,13 @@ export default function PantryPage() {
             const exp = new Date(primaryItem.expirationDate)
             const today = new Date()
             const diff = Math.ceil((exp.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-            const expLabel = diff < 0 ? `Expired ${Math.abs(diff)}d ago` : diff === 0 ? 'Expires today' : `Expires ${exp.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`
+            const expLabel = diff < 0
+              ? t('expiredAgo').replace('{days}', String(Math.abs(diff)))
+              : diff === 0
+                ? t('expiresToday')
+                : locale === 'es'
+                  ? `Vence ${exp.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}`
+                  : `Expires ${exp.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`
             return (
               <div
                 key={group.key}
