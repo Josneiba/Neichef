@@ -125,10 +125,53 @@
   * {
     @apply border-border outline-ring/50;
   }
-  body {
-    @apply bg-background text-foreground font-sans;
+
+  html {
+    scroll-behavior: smooth;
   }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    background-image:
+      radial-gradient(circle at top, rgba(45, 105, 74, 0.08), transparent 30%),
+      linear-gradient(180deg, rgba(255,255,255,0.72), rgba(245, 240, 232, 0.88));
+  }
+
   h1, h2, h3 {
     @apply font-serif;
+  }
+}
+
+@layer components {
+  .landing-shell {
+    background: linear-gradient(180deg, rgba(246, 242, 235, 0.96), rgba(253, 251, 248, 1));
+  }
+
+  .site-header {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    backdrop-filter: blur(10px);
+    background: rgba(253, 251, 248, 0.82);
+    border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  }
+
+  .hero-section {
+    position: relative;
+  }
+
+  .glass-panel {
+    background: linear-gradient(180deg, rgba(255,255,255,0.88), rgba(246,243,237,0.6));
+  }
+
+  .auth-page {
+    background:
+      radial-gradient(circle at top left, rgba(45, 105, 74, 0.12), transparent 28%),
+      linear-gradient(180deg, rgba(246, 242, 235, 0.96), rgba(255, 255, 255, 1));
+  }
+
+  .auth-card {
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(12px);
   }
 }

@@ -12,6 +12,8 @@ import {
   Check,
   Clock,
   BarChart2,
+  Sparkles,
+  Leaf,
 } from 'lucide-react'
 import ExpiringRecipesServer from '@/components/recipes/expiring-recipes-server'
 
@@ -26,340 +28,283 @@ function XMark({ className }: { className?: string }) {
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      {/* Navigation */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border">
-        <div className="max-w-6xl mx-auto px-6 flex items-center justify-between h-16">
-          <span className="font-serif text-xl tracking-tight text-foreground">NeiChef</span>
-          <nav className="hidden md:flex items-center gap-6 text-sm text-muted-foreground">
-            <a href="#how-it-works" className="hover:text-foreground transition-colors">How it works</a>
-            <a href="#features" className="hover:text-foreground transition-colors">Features</a>
+    <div className="landing-shell min-h-screen text-foreground">
+      <header className="site-header">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+          <Link href="/" className="flex items-center gap-3 text-foreground">
+            <span className="font-serif text-xl tracking-tight">NeiChef</span>
+          </Link>
+
+          <nav className="hidden items-center gap-8 text-sm text-muted-foreground md:flex">
+            <a href="#how-it-works" className="transition hover:text-foreground">How it works</a>
+            <a href="#features" className="transition hover:text-foreground">Features</a>
+            <a href="#why-it-matters" className="transition hover:text-foreground">Why it matters</a>
           </nav>
+
           <div className="flex items-center gap-3">
-            <Link href="/auth/sign-in" className="text-sm text-foreground/80 hover:text-foreground transition-colors">Sign in</Link>
-            <Link
-              href="/auth/sign-up"
-              className="inline-flex items-center gap-1.5 bg-primary text-primary-foreground text-sm px-4 py-2 rounded-md font-medium hover:bg-primary/90 transition-colors"
-            >
-              Sign up
-              <ArrowRight className="w-3.5 h-3.5" strokeWidth={2} />
+            <Link href="/auth/sign-in" className="rounded-full px-3 py-2 text-sm text-muted-foreground transition hover:text-foreground">Sign in</Link>
+            <Link href="/auth/sign-up" className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary/90">
+              Join free
+              <ArrowRight className="h-3.5 w-3.5" strokeWidth={2} />
             </Link>
           </div>
         </div>
       </header>
 
       <main>
-        {/* Hero */}
-        <section className="pt-32 pb-20 px-6">
-        <div className="max-w-6xl mx-auto">
-          <div className="grid lg:grid-cols-2 gap-16 items-center">
-            {/* Left */}
-            <div>
-              <div className="inline-flex items-center gap-2 text-xs font-medium text-primary bg-[oklch(0.92_0.04_145)] px-3 py-1.5 rounded-full mb-8 tracking-wide uppercase border border-[oklch(0.82_0.06_145)]">
-                <span className="w-1.5 h-1.5 rounded-full bg-primary inline-block" />
-                Kitchen inventory, done right
-              </div>
-              <h1 className="font-serif text-5xl lg:text-6xl leading-tight text-foreground mb-6 text-balance">
-                Know what&apos;s in your kitchen.
-                <br />
-                <em className="not-italic text-primary">Before it goes to waste.</em>
-              </h1>
-              <p className="text-lg text-muted-foreground leading-relaxed mb-10 max-w-md">
-                Track your pantry, get warned before food expires, and cook with what you already have — so nothing gets thrown out and you stop overbuying.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <Link
-                  href="/auth/sign-up"
-                  className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-md font-medium text-sm hover:bg-primary/90 transition-colors"
-                >
-                  Sign up — it&apos;s free
-                  <ArrowRight className="w-4 h-4" strokeWidth={2} />
-                </Link>
-                <a
-                  href="#how-it-works"
-                  className="inline-flex items-center justify-center gap-2 border border-border text-foreground px-6 py-3 rounded-md font-medium text-sm hover:bg-muted transition-colors"
-                >
-                  See how it works
-                </a>
-              </div>
+        <section className="hero-section px-6 pb-12 pt-16 md:pt-20">
+          <div className="mx-auto max-w-6xl">
+            <div className="grid items-center gap-12 lg:grid-cols-[1.08fr_0.92fr]">
+              <div>
+                <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/8 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
+                  <Sparkles className="h-3.5 w-3.5" strokeWidth={2} />
+                  Kitchen inventory, simplified
+                </div>
 
-              {/* Stats */}
-              <div className="flex items-center gap-8 mt-12 pt-10 border-t border-border">
-                <div>
-                  <p className="font-serif text-3xl text-foreground">$47</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">avg. saved / month</p>
-                </div>
-                <div className="w-px h-8 bg-border" />
-                <div>
-                  <p className="font-serif text-3xl text-foreground">8x</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">less food wasted</p>
-                </div>
-                <div className="w-px h-8 bg-border" />
-                <div>
-                  <p className="font-serif text-3xl text-foreground">3 min</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">to log a full shop</p>
-                </div>
-              </div>
-            </div>
+                <h1 className="mt-7 max-w-xl font-serif text-5xl leading-[0.95] tracking-tight text-foreground md:text-6xl">
+                  Know what&apos;s in your kitchen.
+                  <span className="mt-3 block text-primary">Before it goes to waste.</span>
+                </h1>
 
-            {/* Right: product visual */}
-            <div className="relative">
-              <div className="relative rounded-xl overflow-hidden border border-border shadow-sm">
-                <Image
-                  src="/hero-pantry.png"
-                  alt="Fresh produce arranged on a clean kitchen surface"
-                  width={640}
-                  height={480}
-                  className="w-full object-cover"
-                  priority
-                />
-                {/* Overlay card */}
-                <div className="absolute bottom-4 left-4 right-4 bg-card/95 backdrop-blur-sm rounded-lg border border-border p-4 shadow-sm">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="font-serif text-sm text-foreground">Your Pantry</span>
-                    <span className="text-xs text-muted-foreground">18 items</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="text-center p-2 bg-[oklch(0.92_0.04_145)] rounded-md">
-                      <p className="font-serif text-lg text-[oklch(0.28_0.08_145)]">13</p>
-                      <p className="text-[10px] text-[oklch(0.35_0.07_145)] mt-0.5">Fresh</p>
-                    </div>
-                    <div className="text-center p-2 bg-[oklch(0.94_0.07_75)] rounded-md">
-                      <p className="font-serif text-lg text-[oklch(0.42_0.10_55)]">5</p>
-                      <p className="text-[10px] text-[oklch(0.45_0.09_55)] mt-0.5">Expiring</p>
-                    </div>
-                    <div className="text-center p-2 bg-[oklch(0.93_0.05_25)] rounded-md">
-                      <p className="font-serif text-lg text-[oklch(0.42_0.15_25)]">2</p>
-                      <p className="text-[10px] text-[oklch(0.45_0.13_25)] mt-0.5">Expired</p>
-                    </div>
-                  </div>
+                <p className="mt-6 max-w-lg text-lg leading-8 text-muted-foreground">
+                  Track what you already have, spot expiring items early, and turn your pantry into a smarter meal plan—without the extra grocery run.
+                </p>
+
+                <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                  <Link href="/auth/sign-up" className="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary/90">
+                    Start free
+                    <ArrowRight className="h-4 w-4" strokeWidth={2} />
+                  </Link>
+                  <a href="#how-it-works" className="inline-flex items-center justify-center gap-2 rounded-full border border-border bg-card px-6 py-3 text-sm font-medium text-foreground transition hover:border-primary/40 hover:text-primary">
+                    See how it works
+                  </a>
                 </div>
-                <div className="mt-4">
-                  <div className="text-xs text-muted-foreground mb-2">Recipes to use soon</div>
-                  <ExpiringRecipesServer />
+
+                <div className="mt-10 grid max-w-xl grid-cols-3 gap-4 border-t border-border pt-8">
+                  {[
+                    { value: '$47', label: 'avg. saved / month' },
+                    { value: '8x', label: 'less food wasted' },
+                    { value: '3 min', label: 'to log a shop' },
+                  ].map((item) => (
+                    <div key={item.label}>
+                      <p className="font-serif text-3xl text-foreground">{item.value}</p>
+                      <p className="mt-1 text-[11px] leading-5 text-muted-foreground">{item.label}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
 
-              {/* Floating notification */}
-              <div className="absolute -top-4 -right-6 bg-card border border-border rounded-lg p-3 shadow-sm hidden md:block">
-                <div className="flex items-start gap-2.5 max-w-[240px]">
-                  <div className="w-6 h-6 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <Bell className="w-3 h-3 text-amber-800" strokeWidth={2} />
+              <div className="relative">
+                <div className="glass-panel relative overflow-hidden rounded-[2rem] border border-border bg-card p-3 shadow-[0_18px_60px_rgba(17,24,39,0.08)]">
+                  <div className="overflow-hidden rounded-[1.5rem] border border-border/80 bg-[linear-gradient(135deg,#f7f4ee,#edf4ee)]">
+                    <Image src="/hero-pantry.png" alt="Healthy pantry ingredients arranged on a kitchen counter" width={640} height={480} className="h-[480px] w-full object-cover" priority />
                   </div>
-                  <div>
-                    <p className="text-xs font-medium text-foreground leading-snug">Items expiring soon</p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">Find recipes using them</p>
-                    <a href="/app/recipes" className="mt-2 inline-block text-xs text-primary underline">See suggestions</a>
+
+                  <div className="absolute inset-x-5 bottom-5 rounded-2xl border border-border bg-card/95 p-4 backdrop-blur-sm shadow-lg">
+                    <div className="mb-3 flex items-center justify-between">
+                      <span className="font-serif text-lg text-foreground">Your pantry</span>
+                      <span className="text-xs text-muted-foreground">18 items</span>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="rounded-xl bg-primary/10 p-3 text-center">
+                        <p className="font-serif text-2xl text-primary">13</p>
+                        <p className="mt-1 text-[10px] uppercase tracking-[0.14em] text-primary">Fresh</p>
+                      </div>
+                      <div className="rounded-xl bg-amber-100 p-3 text-center">
+                        <p className="font-serif text-2xl text-amber-700">5</p>
+                        <p className="mt-1 text-[10px] uppercase tracking-[0.14em] text-amber-700">Expiring</p>
+                      </div>
+                      <div className="rounded-xl bg-rose-100 p-3 text-center">
+                        <p className="font-serif text-2xl text-rose-700">2</p>
+                        <p className="mt-1 text-[10px] uppercase tracking-[0.14em] text-rose-700">Expired</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="absolute -right-3 top-8 hidden max-w-[220px] rounded-2xl border border-border bg-card p-3 shadow-lg md:block">
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+                      <Bell className="h-4 w-4" strokeWidth={2} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Items expiring soon</p>
+                      <p className="mt-1 text-[11px] leading-5 text-muted-foreground">Try a recipe before the fridge gets crowded.</p>
+                      <a href="/app/recipes" className="mt-2 inline-block text-xs font-medium text-primary underline decoration-primary/40 underline-offset-4">See suggestions</a>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Problem */}
-      <section className="py-20 px-6 bg-[oklch(0.965_0.006_82)]">
-        <div className="max-w-4xl mx-auto">
-          <div className="grid md:grid-cols-2 gap-14 items-center">
-            <div>
-              <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground mb-4">The problem</p>
-              <h2 className="font-serif text-3xl lg:text-4xl text-foreground mb-6 text-balance">
-                The average household throws away $1,500 of food per year.
-              </h2>
-              <p className="text-muted-foreground leading-relaxed mb-4">
-                Most of it is produce and dairy that expired before you remembered it was there. You buy duplicates of things you already have. You plan meals without checking what needs to be used first.
-              </p>
-              <p className="text-muted-foreground leading-relaxed">
-                The fix is not complicated. You need to know what you have and when it expires — before it goes bad, not after.
-              </p>
+        <section className="bg-[oklch(0.965_0.006_82)] px-6 py-20">
+          <div className="mx-auto max-w-5xl">
+            <div className="grid items-center gap-12 md:grid-cols-2">
+              <div>
+                <p className="mb-4 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">The problem</p>
+                <h2 className="max-w-md font-serif text-4xl leading-tight text-foreground">
+                  Food waste happens because the kitchen is noisy.
+                </h2>
+              </div>
+
+              <div className="space-y-4">
+                {[
+                  { value: '$1,500', label: 'wasted per household per year', source: 'USDA' },
+                  { value: '30-40%', label: 'of the US food supply is wasted annually', source: 'FDA' },
+                  { value: '1 in 3', label: 'grocery trips buy things already at home', source: 'ReFED' },
+                ].map((item) => (
+                  <div key={item.value} className="flex items-start gap-4 rounded-2xl border border-border bg-card p-4">
+                    <p className="w-24 flex-shrink-0 font-serif text-3xl text-primary">{item.value}</p>
+                    <div>
+                      <p className="text-sm leading-6 text-foreground">{item.label}</p>
+                      <p className="mt-1 text-[11px] uppercase tracking-[0.14em] text-muted-foreground">Source: {item.source}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-            <div className="space-y-3">
+          </div>
+        </section>
+
+        <section id="how-it-works" className="px-6 py-20">
+          <div className="mx-auto max-w-5xl">
+            <div className="mb-14">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">How it works</p>
+              <h2 className="font-serif text-4xl text-foreground">Four steps. Zero guesswork.</h2>
+            </div>
+
+            <div className="space-y-6">
               {[
-                { stat: '$1,500', label: 'wasted per household per year in the US', source: 'USDA' },
-                { stat: '30–40%', label: 'of the US food supply is wasted annually', source: 'FDA' },
-                { stat: '1 in 3', label: 'grocery trips buy things already at home', source: 'ReFED' },
-              ].map(({ stat, label, source }) => (
-                <div key={stat} className="flex items-start gap-4 p-5 bg-card rounded-lg border border-border">
-                  <p className="font-serif text-3xl text-primary flex-shrink-0 w-24">{stat}</p>
-                  <div>
-                    <p className="text-sm text-foreground leading-snug">{label}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Source: {source}</p>
+                { num: '01', title: 'Add what you have', desc: 'Scan a barcode, photograph your groceries, upload a receipt, or type in items manually. NeiChef keeps the essentials in one place.', icon: Package },
+                { num: '02', title: 'Know what is expiring soon', desc: 'Set the warning window you want and get a clean alert before produce, dairy, and leftovers slip away.', icon: Bell },
+                { num: '03', title: 'Match meals to your pantry', desc: 'Recipes are ranked by ingredient overlap and urgency so you cook with what you already have.', icon: BookOpen },
+                { num: '04', title: 'Cook with focus', desc: 'Use guided steps and timers in a clean kitchen-friendly view while you prepare the meal.', icon: ChefHat },
+              ].map(({ num, title, desc, icon: Icon }, index) => (
+                <div key={num} className="grid gap-5 rounded-[1.75rem] border border-border bg-card p-6 md:grid-cols-[80px_1fr] md:p-8">
+                  <div className="flex items-center gap-4 md:flex-col md:items-start">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full border border-primary/25 bg-primary/8 text-primary">
+                      <Icon className="h-5 w-5" strokeWidth={1.7} />
+                    </div>
+                    <span className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">{num}</span>
+                  </div>
+                  <div className={index < 3 ? 'border-b border-border pb-2 md:border-b-0 md:pb-0' : ''}>
+                    <h3 className="font-serif text-2xl text-foreground">{title}</h3>
+                    <p className="mt-3 max-w-2xl text-sm leading-7 text-muted-foreground">{desc}</p>
                   </div>
                 </div>
               ))}
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* How it works */}
-      <section id="how-it-works" className="py-20 px-6">
-        <div className="max-w-4xl mx-auto">
-          <div className="mb-14">
-            <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground mb-3">How it works</p>
-            <h2 className="font-serif text-3xl lg:text-4xl text-foreground text-balance">
-              Four steps. No friction.
-            </h2>
-          </div>
-          <div className="space-y-0">
-            {[
-              {
-                num: '01',
-                title: 'Add what you have',
-                desc: 'Scan a barcode, photograph your ingredients, upload a receipt, or enter items manually. NeiChef logs the name, quantity, and expiration date.',
-                icon: Package,
-              },
-              {
-                num: '02',
-                title: 'Get notified before something expires',
-                desc: 'You set how many days in advance you want to know. NeiChef sends a clear alert — item name, expiry date, and a recipe that uses it — so you can act on time.',
-                icon: Bell,
-              },
-              {
-                num: '03',
-                title: 'Get recipe ideas based on what you have',
-                desc: 'Recipes are ranked by how many of your pantry items they use, with priority given to ingredients close to expiring. No guesswork, no wasted trips.',
-                icon: BookOpen,
-              },
-              {
-                num: '04',
-                title: 'Cook, guided step by step',
-                desc: 'Cook Mode gives you one instruction at a time in large, legible text — usable from across the kitchen. Built-in timers for steps that require waiting.',
-                icon: ChefHat,
-              },
-            ].map(({ num, title, desc, icon: Icon }, idx) => (
-              <div key={num} className="flex gap-6 lg:gap-10">
-                <div className="flex flex-col items-center">
-                  <div className="w-10 h-10 rounded-full border-2 border-primary flex items-center justify-center flex-shrink-0">
-                    <Icon className="w-4 h-4 text-primary" strokeWidth={1.5} />
-                  </div>
-                  {idx < 3 && <div className="w-px flex-1 bg-border mt-3 min-h-[48px]" />}
-                </div>
-                <div className="pb-12 pt-1.5">
-                  <p className="text-xs font-medium text-muted-foreground mb-1 tracking-widest">{num}</p>
-                  <h3 className="font-serif text-xl text-foreground mb-2">{title}</h3>
-                  <p className="text-muted-foreground text-sm leading-relaxed max-w-xl">{desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Features grid */}
-      <section id="features" className="py-20 px-6 bg-[oklch(0.965_0.006_82)]">
-        <div className="max-w-5xl mx-auto">
-          <div className="mb-14">
-            <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground mb-3">Features</p>
-            <h2 className="font-serif text-3xl lg:text-4xl text-foreground text-balance">
-              Everything your kitchen needs.
-            </h2>
-          </div>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[
-              { icon: Package, title: 'Pantry inventory', desc: 'Track every item by name, category, quantity, expiry date, and storage location — fridge, freezer, or pantry.' },
-              { icon: Camera, title: 'Photo recognition', desc: 'Photograph your groceries. NeiChef detects what you have and lists them for confirmation before saving.' },
-              { icon: ScanBarcode, title: 'Barcode scanning', desc: "Scan any packaged item's barcode to auto-fill the product name and details. Add quantity and expiry, done." },
-              { icon: FileText, title: 'Receipt import', desc: 'Upload a grocery receipt. NeiChef parses the list, lets you review, and adds confirmed items to your pantry.' },
-              { icon: Bell, title: 'Expiration alerts', desc: 'Configurable warnings — set how many days ahead you want to know, with a recipe suggestion for the expiring item.' },
-              { icon: BookOpen, title: 'Recipe suggestions', desc: 'Recipes ranked by ingredient overlap with your pantry. Filter by time, difficulty, and cost.' },
-              { icon: ChefHat, title: 'Cook Mode', desc: 'One step at a time, large and legible. Built-in timers. Designed for use at arm\'s length while cooking.' },
-              { icon: BarChart2, title: 'Waste tracking', desc: 'See how many items you used before expiry and estimate money saved versus wasted over time.' },
-              { icon: Clock, title: 'Saved recipes', desc: 'Bookmark recipes you like or add your own. Your collection alongside pantry-matched suggestions.' },
-            ].map(({ icon: Icon, title, desc }) => (
-              <div key={title} className="bg-card rounded-lg border border-border p-5 hover:border-primary/40 transition-colors">
-                <div className="w-9 h-9 rounded-md bg-muted flex items-center justify-center mb-4">
-                  <Icon className="w-4 h-4 text-foreground" strokeWidth={1.5} />
-                </div>
-                <h3 className="font-medium text-sm text-foreground mb-2">{title}</h3>
-                <p className="text-xs text-muted-foreground leading-relaxed">{desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Why different */}
-      <section className="py-20 px-6">
-        <div className="max-w-4xl mx-auto">
-          <div className="mb-12">
-            <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground mb-3">Why it&apos;s different</p>
-            <h2 className="font-serif text-3xl lg:text-4xl text-foreground text-balance">
-              Not another recipe search engine.
-            </h2>
-          </div>
-          <div className="grid md:grid-cols-2 gap-10">
-            <div>
-              <h3 className="font-serif text-lg text-muted-foreground mb-6">The old way</h3>
-              <div className="space-y-4">
-                {[
-                  'Open a recipe app and search for something',
-                  "Check if you have the ingredients — you don't",
-                  'Make a grocery run for three missing items',
-                  'Forget what was expiring at home',
-                  'Throw it out a week later',
-                ].map((item) => (
-                  <div key={item} className="flex items-start gap-3">
-                    <XMark className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
-                    <p className="text-sm text-muted-foreground">{item}</p>
-                  </div>
-                ))}
-              </div>
+        <section id="features" className="bg-[oklch(0.965_0.006_82)] px-6 py-20">
+          <div className="mx-auto max-w-6xl">
+            <div className="mb-12">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Features</p>
+              <h2 className="font-serif text-4xl text-foreground">Everything your kitchen needs.</h2>
             </div>
-            <div>
-              <h3 className="font-serif text-lg text-foreground mb-6">With NeiChef</h3>
-              <div className="space-y-4">
-                {[
-                  'Photograph your groceries when you get home',
-                  'NeiChef knows what you have and what expires soon',
-                  'Get recipes ranked by ingredient overlap and urgency',
-                  'Cook before things go bad',
-                  'Track money saved. Reduce waste over time.',
-                ].map((item) => (
-                  <div key={item} className="flex items-start gap-3">
-                    <Check className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" strokeWidth={2.5} />
-                    <p className="text-sm text-foreground">{item}</p>
+
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {[
+                { icon: Package, title: 'Pantry insight', desc: 'Track items, categories, quantities, and expiry dates without losing track of what is already at home.' },
+                { icon: Camera, title: 'Photo recognition', desc: 'Photograph groceries, review the suggestions, and add them in seconds.' },
+                { icon: ScanBarcode, title: 'Barcode scanning', desc: 'Capture a product instantly and keep the pantry list accurate from the first shopping trip.' },
+                { icon: FileText, title: 'Receipt import', desc: 'Upload receipts and confirm only the items you want to add.' },
+                { icon: Bell, title: 'Expiry alerts', desc: 'Set reminders ahead of time and get recipe suggestions before food spoils.' },
+                { icon: BookOpen, title: 'Recipe matching', desc: 'Surface recipes that use what you already have and minimize unnecessary buying.' },
+                { icon: ChefHat, title: 'Cook mode', desc: 'One step at a time, with large text and keyboard-free usability in the kitchen.' },
+                { icon: BarChart2, title: 'Waste tracking', desc: 'Measure what you saved and understand how much food you are reducing over time.' },
+                { icon: Clock, title: 'Saved favourites', desc: 'Keep the recipes you love close and revisit them whenever you need a plan.' },
+              ].map(({ icon: Icon, title, desc }) => (
+                <div key={title} className="rounded-[1.5rem] border border-border bg-card p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md">
+                  <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-primary/8 text-primary">
+                    <Icon className="h-4 w-4" strokeWidth={1.7} />
                   </div>
-                ))}
+                  <h3 className="text-lg font-medium text-foreground">{title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">{desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section id="why-it-matters" className="px-6 py-20">
+          <div className="mx-auto max-w-5xl">
+            <div className="mb-12">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Why it matters</p>
+              <h2 className="font-serif text-4xl text-foreground">Not another recipe app. A better kitchen system.</h2>
+            </div>
+
+            <div className="grid gap-8 md:grid-cols-2">
+              <div className="rounded-[1.75rem] border border-border bg-card p-6">
+                <h3 className="mb-5 font-serif text-2xl text-muted-foreground">The old way</h3>
+                <div className="space-y-4">
+                  {['Search a recipe app', 'Forget what is already at home', 'Buy duplicates on the way back', 'Find a forgotten item in the fridge', 'Throw it away a week later'].map((item) => (
+                    <div key={item} className="flex items-start gap-3 text-sm text-muted-foreground">
+                      <XMark className="mt-0.5 h-4 w-4 text-muted-foreground" />
+                      <span>{item}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-[1.75rem] border border-primary/20 bg-primary/4 p-6">
+                <h3 className="mb-5 font-serif text-2xl text-foreground">With NeiChef</h3>
+                <div className="space-y-4">
+                  {['Photograph groceries when you get home', 'Know what expires soon and what is already there', 'Use pantry-first recipes before buying more', 'Cook with fewer decisions and less waste', 'Track money saved over time'].map((item) => (
+                    <div key={item} className="flex items-start gap-3 text-sm text-foreground">
+                      <Check className="mt-0.5 h-4 w-4 text-primary" strokeWidth={2.5} />
+                      <span>{item}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Final CTA */}
-      <section className="py-24 px-6 bg-sidebar">
-        <div className="max-w-3xl mx-auto text-center">
-          <h2 className="font-serif text-3xl lg:text-4xl text-sidebar-foreground mb-4 text-balance">
-            Start with your pantry, today.
-          </h2>
-          <p className="text-sidebar-foreground/60 mb-10 leading-relaxed max-w-xl mx-auto">
-            Add what you have, see what&apos;s expiring, and cook something good with it. No subscription required to get started.
-          </p>
-          <Link
-            href="/auth/sign-up"
-            className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-8 py-3.5 rounded-md font-medium hover:bg-primary/90 transition-colors"
-          >
-            Create your free account
-            <ArrowRight className="w-4 h-4" strokeWidth={2} />
-          </Link>
-        </div>
-      </section>
+        <section className="bg-sidebar px-6 py-24">
+          <div className="mx-auto max-w-4xl text-center">
+            <div className="mb-6 flex justify-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-sidebar-primary/15 text-sidebar-primary">
+                <Leaf className="h-6 w-6" strokeWidth={1.8} />
+              </div>
+            </div>
+            <h2 className="font-serif text-4xl text-sidebar-foreground">Start with your pantry, today.</h2>
+            <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-sidebar-foreground/70">
+              Organize what you already have, cook before food expires, and build calmer, smarter grocery habits.
+            </p>
+            <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+              <Link href="/auth/sign-up" className="inline-flex items-center gap-2 rounded-full bg-primary px-7 py-3.5 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary/90">
+                Create your free account
+                <ArrowRight className="h-4 w-4" strokeWidth={2} />
+              </Link>
+              <Link href="/auth/sign-in" className="inline-flex items-center gap-2 rounded-full border border-sidebar-border bg-transparent px-7 py-3.5 text-sm font-medium text-sidebar-foreground/80 transition hover:border-sidebar-primary hover:text-sidebar-foreground">
+                Sign in
+              </Link>
+            </div>
+          </div>
+        </section>
       </main>
 
-      {/* Footer */}
-      <footer className="bg-sidebar border-t border-sidebar-border px-6 py-10">
-        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+      <footer className="border-t border-border bg-card/80 px-6 py-8">
+        <div className="mx-auto flex max-w-6xl flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <span className="font-serif text-xl text-sidebar-foreground">NeiChef</span>
-            <p className="text-xs text-sidebar-foreground/40 mt-1">Kitchen pantry management.</p>
+            <div className="flex items-center gap-3">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">N</span>
+              <span className="font-serif text-xl text-foreground">NeiChef</span>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">Kitchen pantry management.</p>
           </div>
-          <div className="flex flex-wrap gap-6 text-xs text-sidebar-foreground/40">
-            <a href="#" className="hover:text-sidebar-foreground/70 transition-colors">Privacy</a>
-            <a href="#" className="hover:text-sidebar-foreground/70 transition-colors">Terms</a>
-            <Link href="/auth/sign-in" className="hover:text-sidebar-foreground/70 transition-colors">Sign in</Link>
-            <Link href="/auth/sign-up" className="hover:text-sidebar-foreground/70 transition-colors">Sign up</Link>
+
+          <div className="flex flex-wrap items-center gap-5 text-xs text-muted-foreground">
+            <a href="#" className="transition hover:text-foreground">Privacy</a>
+            <a href="#" className="transition hover:text-foreground">Terms</a>
+            <Link href="/auth/sign-in" className="transition hover:text-foreground">Sign in</Link>
+            <Link href="/auth/sign-up" className="transition hover:text-foreground">Sign up</Link>
           </div>
         </div>
       </footer>
