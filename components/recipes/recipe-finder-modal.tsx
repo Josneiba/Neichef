@@ -90,8 +90,8 @@ export function RecipeFinderModal({ initialMode, onClose }: RecipeFinderModalPro
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-8">
-      <div className="w-full max-w-lg rounded-lg border border-border bg-card shadow-xl">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-black/40 px-4 py-8 backdrop-blur-[2px]">
+      <div className="relative z-[101] w-full max-w-lg rounded-lg border border-border bg-card shadow-xl">
         <div className="flex items-start justify-between border-b border-border p-5">
           <div>
             <p className="text-xs uppercase tracking-widest text-muted-foreground">{t('recipeFinderTitle')}</p>

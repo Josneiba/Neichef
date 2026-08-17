@@ -3,8 +3,9 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { useT } from '@/lib/i18n'
 import { useRecipes } from '@/lib/hooks'
-import { ArrowLeft, Plus, Trash2, Loader2, FileText, Sparkles } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Loader2, FileText, X } from 'lucide-react'
 import type { RecipeDifficulty } from '@/lib/types'
 import { parseImportedRecipeText } from '@/lib/recipes/import'
 
@@ -16,6 +17,7 @@ type DraftStep = { instruction: string; durationMinutes: string }
 // was a dead link. addCustomRecipe() in lib/hooks.ts and POST /api/recipes
 // were already implemented; this page is what actually calls them.
 export default function NewRecipePage() {
+  const t = useT()
   const router = useRouter()
   const { addCustomRecipe } = useRecipes()
 
@@ -33,6 +35,8 @@ export default function NewRecipePage() {
   const [isImporting, setIsImporting] = useState(false)
   const [importMode, setImportMode] = useState<'manual' | 'paste' | 'document'>('manual')
   const [error, setError] = useState('')
+  const [showPasteModal, setShowPasteModal] = useState(false)
+  const [pasteText, setPasteText] = useState('')
 
   function updateIngredient(index: number, patch: Partial<DraftIngredient>) {
     setIngredients((prev) => prev.map((ing, i) => (i === index ? { ...ing, ...patch } : ing)))
@@ -94,9 +98,17 @@ export default function NewRecipePage() {
   }
 
   async function handlePasteImport() {
-    const text = window.prompt('Paste a recipe here and we will try to extract the structure for you.')
-    if (!text?.trim()) return
-    await importRecipeText(text, 'paste')
+    setShowPasteModal(true)
+    setPasteText('')
+  }
+
+  async function handlePasteSubmit() {
+    if (!pasteText?.trim()) {
+      setShowPasteModal(false)
+      return
+    }
+    setShowPasteModal(false)
+    await importRecipeText(pasteText, 'paste')
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -142,27 +154,27 @@ export default function NewRecipePage() {
   return (
     <div className="px-6 py-8 max-w-2xl mx-auto pb-24 lg:pb-8">
       <Link href="/app/recipes" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6">
-        <ArrowLeft className="w-4 h-4" strokeWidth={1.5} /> Back to recipes
+        <ArrowLeft className="w-4 h-4" strokeWidth={1.5} /> {t('backToRecipes')}
       </Link>
 
       <div className="mb-6">
-        <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1">Create</p>
-        <h1 className="font-serif text-3xl text-foreground">New recipe</h1>
+        <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1">{t('createRecipe')}</p>
+        <h1 className="font-serif text-3xl text-foreground">{t('newRecipe')}</h1>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="rounded-lg border border-border bg-card p-4 space-y-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-sm font-medium text-foreground">Import recipe draft</p>
-              <p className="text-xs text-muted-foreground mt-1">Paste a recipe or upload a .txt/.md file. We’ll prefill the form so you only need to review it.</p>
+              <p className="text-sm font-medium text-foreground">{t('importRecipeDraft')}</p>
+              <p className="text-xs text-muted-foreground mt-1">{t('pasteRecipeDescription')}</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={() => setImportMode('manual')} className={importMode === 'manual' ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground border border-border'} style={{ borderRadius: 999, padding: '0.45rem 0.75rem', fontSize: '0.8rem' }}>Manual</button>
-              <button type="button" onClick={() => void handlePasteImport()} className={importMode === 'paste' ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground border border-border'} style={{ borderRadius: 999, padding: '0.45rem 0.75rem', fontSize: '0.8rem' }}>Paste text</button>
+              <button type="button" onClick={() => setImportMode('manual')} className={importMode === 'manual' ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground border border-border'} style={{ borderRadius: 999, padding: '0.45rem 0.75rem', fontSize: '0.8rem' }}>{t('manualImport')}</button>
+              <button type="button" onClick={() => void handlePasteImport()} className={importMode === 'paste' ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground border border-border'} style={{ borderRadius: 999, padding: '0.45rem 0.75rem', fontSize: '0.8rem' }}>{t('pasteText')}</button>
               <label className={importMode === 'document' ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground border border-border'} style={{ borderRadius: 999, padding: '0.45rem 0.75rem', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer' }}>
                 <FileText className="h-4 w-4" strokeWidth={1.6} />
-                Upload
+                {t('uploadFile')}
                 <input type="file" accept=".txt,.md,text/plain,text/markdown" className="hidden" onChange={(event) => void importDocument(event.target.files?.[0])} />
               </label>
             </div>
@@ -170,69 +182,69 @@ export default function NewRecipePage() {
           {isImporting ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
-              Extracting recipe draft…
+              {t('extractingRecipeDraft')}
             </div>
           ) : null}
         </div>
 
         <div>
-          <label className={labelClass}>Title *</label>
+          <label className={labelClass}>{t('recipeTitle')} *</label>
           <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Weeknight garlic pasta" className={inputClass} />
         </div>
 
         <div>
-          <label className={labelClass}>Description *</label>
+          <label className={labelClass}>{t('recipeDescription')} *</label>
           <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder="A short description of the dish" className={inputClass} />
         </div>
 
         <div className="grid grid-cols-3 gap-3">
           <div>
-            <label className={labelClass}>Prep (min)</label>
+            <label className={labelClass}>{t('prepTime')}</label>
             <input type="number" min="1" value={prepTimeMinutes} onChange={(e) => setPrepTimeMinutes(e.target.value)} className={inputClass} />
           </div>
           <div>
-            <label className={labelClass}>Cook (min)</label>
+            <label className={labelClass}>{t('cookTime')}</label>
             <input type="number" min="1" value={cookTimeMinutes} onChange={(e) => setCookTimeMinutes(e.target.value)} className={inputClass} />
           </div>
           <div>
-            <label className={labelClass}>Servings</label>
+            <label className={labelClass}>{t('servings')}</label>
             <input type="number" min="1" value={servings} onChange={(e) => setServings(e.target.value)} className={inputClass} />
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={labelClass}>Difficulty</label>
+            <label className={labelClass}>{t('difficulty')}</label>
             <select value={difficulty} onChange={(e) => setDifficulty(e.target.value as RecipeDifficulty)} className={cn_select()}>
-              <option value="easy">Easy</option>
-              <option value="medium">Intermediate</option>
-              <option value="hard">Advanced</option>
+              <option value="easy">{t('easy')}</option>
+              <option value="medium">{t('intermediate')}</option>
+              <option value="hard">{t('advanced')}</option>
             </select>
           </div>
           <div>
-            <label className={labelClass}>Cost level</label>
+            <label className={labelClass}>{t('costLevel')}</label>
             <select value={costLevel} onChange={(e) => setCostLevel(e.target.value as 'low' | 'medium' | 'high')} className={cn_select()}>
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
+              <option value="low">{t('low')}</option>
+              <option value="medium">{t('medium')}</option>
+              <option value="high">{t('high')}</option>
             </select>
           </div>
         </div>
 
         <div>
-          <label className={labelClass}>Tags (comma separated)</label>
+          <label className={labelClass}>{t('tagsSeparated')}</label>
           <input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="quick, vegetarian, weeknight" className={inputClass} />
         </div>
 
         {/* Ingredients */}
         <div>
           <div className="flex items-center justify-between mb-2">
-            <label className={labelClass}>Ingredients *</label>
+            <label className={labelClass}>{t('ingredients')} *</label>
           </div>
           <div className="space-y-2">
             {ingredients.map((ing, index) => (
               <div key={index} className="grid grid-cols-[1fr_80px_80px_auto] gap-2">
-                <input value={ing.name} onChange={(e) => updateIngredient(index, { name: e.target.value })} placeholder="Ingredient" className={inputClass} />
+                <input value={ing.name} onChange={(e) => updateIngredient(index, { name: e.target.value })} placeholder={t('ingredients')} className={inputClass} />
                 <input value={ing.amount} onChange={(e) => updateIngredient(index, { amount: e.target.value })} placeholder="Amt" inputMode="decimal" className={inputClass} />
                 <input value={ing.unit} onChange={(e) => updateIngredient(index, { unit: e.target.value })} placeholder="Unit" className={inputClass} />
                 <button type="button" onClick={() => setIngredients((prev) => prev.filter((_, i) => i !== index))} className="text-muted-foreground hover:text-destructive" aria-label="Remove ingredient">
@@ -242,13 +254,13 @@ export default function NewRecipePage() {
             ))}
           </div>
           <button type="button" onClick={() => setIngredients((prev) => [...prev, { name: '', amount: '', unit: 'g' }])} className="mt-2 w-full flex items-center justify-center gap-1.5 border border-dashed border-border rounded-lg py-2 text-xs text-muted-foreground hover:text-foreground hover:border-muted-foreground/50 transition-colors">
-            <Plus className="w-3.5 h-3.5" strokeWidth={2} /> Add ingredient
+            <Plus className="w-3.5 h-3.5" strokeWidth={2} /> {t('addIngredient')}
           </button>
         </div>
 
         {/* Steps */}
         <div>
-          <label className={labelClass}>Method *</label>
+          <label className={labelClass}>{t('method')} *</label>
           <div className="space-y-2">
             {steps.map((step, index) => (
               <div key={index} className="flex gap-2">
@@ -258,7 +270,7 @@ export default function NewRecipePage() {
                 <textarea
                   value={step.instruction}
                   onChange={(e) => updateStep(index, { instruction: e.target.value })}
-                  placeholder={`Step ${index + 1}`}
+                  placeholder={`${t('step')} ${index + 1}`}
                   rows={2}
                   className={cn_textarea()}
                 />
@@ -276,7 +288,7 @@ export default function NewRecipePage() {
             ))}
           </div>
           <button type="button" onClick={() => setSteps((prev) => [...prev, { instruction: '', durationMinutes: '' }])} className="mt-2 w-full flex items-center justify-center gap-1.5 border border-dashed border-border rounded-lg py-2 text-xs text-muted-foreground hover:text-foreground hover:border-muted-foreground/50 transition-colors">
-            <Plus className="w-3.5 h-3.5" strokeWidth={2} /> Add step
+            <Plus className="w-3.5 h-3.5" strokeWidth={2} /> {t('addStep')}
           </button>
         </div>
 
@@ -284,9 +296,47 @@ export default function NewRecipePage() {
 
         <button type="submit" disabled={isSubmitting} className="w-full bg-primary text-primary-foreground py-3 rounded-md text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-60 flex items-center justify-center gap-2">
           {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-          {isSubmitting ? 'Saving…' : 'Save recipe'}
+          {isSubmitting ? t('saving') : t('saveRecipe')}
         </button>
       </form>
+
+      {/* Paste Modal */}
+      {showPasteModal && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-lg shadow-lg max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-serif text-xl text-foreground">{t('pasteRecipeTitle')}</h2>
+              <button onClick={() => setShowPasteModal(false)} className="text-muted-foreground hover:text-foreground">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-sm text-muted-foreground mb-4">{t('pasteRecipePrompt')}</p>
+            <textarea
+              value={pasteText}
+              onChange={(e) => setPasteText(e.target.value)}
+              placeholder="Paste recipe here..."
+              rows={8}
+              className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+            />
+            <div className="flex gap-3 mt-6">
+              <button
+                type="button"
+                onClick={() => setShowPasteModal(false)}
+                className="flex-1 px-4 py-2 border border-border rounded-md text-sm font-medium text-foreground hover:bg-muted transition-colors"
+              >
+                {t('cancel')}
+              </button>
+              <button
+                type="button"
+                onClick={handlePasteSubmit}
+                className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors"
+              >
+                {t('submit')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

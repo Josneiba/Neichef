@@ -32,22 +32,63 @@ export async function extractRecipeWithGroq(rawText: string): Promise<ExtractedR
     model: 'llama-3.1-8b-instant',
     response_format: { type: 'json_object' },
     temperature: 0.1,
-    max_tokens: 900,
+    max_tokens: 1500,
     messages: [
       {
         role: 'system',
-        content: `You extract a recipe from free-form user text (could be a pasted recipe, a messy note, or a document dump).
-Return ONLY valid JSON with this exact shape:
-{ "title": string, "description": string, "servings": number, "prepTimeMinutes": number, "cookTimeMinutes": number,
-  "tags": string[], "ingredients": [{ "name": string, "amount": number, "unit": string }],
-  "steps": [{ "instruction": string, "durationMinutes": number|null }] }
-Rules:
-- Separate ingredients from cooking steps even if the input doesn't label them explicitly.
-- Normalize units to short forms (g, kg, ml, l, tsp, tbsp, cup, pcs).
-- If a quantity is missing, use amount 1 and unit "pcs".
-- Keep step instructions short and actionable, one action per step.
-- Keep the original language of the input.
-- Do not invent ingredients that are not mentioned in the text.`,
+        content: `You are a recipe extraction expert. Parse recipe text into structured JSON format.
+
+REQUIRED OUTPUT FORMAT (no deviations):
+{
+  "title": "Recipe name",
+  "description": "Brief summary of the dish (1-2 sentences)",
+  "servings": 2,
+  "prepTimeMinutes": 15,
+  "cookTimeMinutes": 30,
+  "tags": ["tag1", "tag2"],
+  "ingredients": [
+    {"name": "ingredient name", "amount": 1.5, "unit": "cup"},
+    {"name": "another ingredient", "amount": 100, "unit": "g"}
+  ],
+  "steps": [
+    {"instruction": "First action to perform", "durationMinutes": null},
+    {"instruction": "Second action", "durationMinutes": 10}
+  ]
+}
+
+EXTRACTION RULES:
+1. title: Use the recipe name. If not explicit, infer from ingredients/instructions.
+2. description: Create a brief, helpful summary if not present.
+3. servings: Extract from "serves X" or similar. Default to 2.
+4. prepTimeMinutes: Look for "prep time", "preparation", "active time". Default to 15.
+5. cookTimeMinutes: Look for "cook time", "baking time", "total time" minus prep. Default to 30.
+6. tags: Extract 2-4 relevant tags (cuisine type, dietary, difficulty level, flavor profile).
+7. ingredients:
+   - Split each ingredient into name, amount, unit.
+   - Normalize units: g, kg, ml, l, tsp, tbsp, cup, oz, lb, pcs
+   - For complex ingredients (e.g., "2 cups (240g) flour"), use the first quantity.
+   - For "to taste" or unmeasured, use amount 1 and unit "pcs".
+   - Extract quantity as a decimal number (e.g., "2 1/2" → 2.5).
+   - DO NOT include preparation notes in ingredient name (e.g., "butter" not "softened butter").
+8. steps:
+   - Break into single-action steps (not multi-step paragraphs).
+   - Remove vague intro text; start with actionable verbs (Mix, Heat, Pour, etc.).
+   - Extract duration if mentioned (e.g., "bake for 25 minutes" → durationMinutes: 25).
+   - Keep instructions clear and concise (1-2 sentences per step).
+9. Special handling:
+   - For recipes with multiple ingredient lists (Dough, Filling, Icing), merge them into one flat ingredients list with clear names.
+   - Preserve original ingredient language.
+   - If recipe has titled sections (e.g., "### For the Dough:"), flatten them and clarify in ingredient names if needed.
+
+ERROR PREVENTION:
+- MUST output valid JSON that parses successfully.
+- MUST include all required fields (title, description, servings, prepTimeMinutes, cookTimeMinutes, tags, ingredients, steps).
+- ingredients array MUST have at least 1 item.
+- steps array MUST have at least 1 item.
+- All number fields MUST be numbers, not strings.
+- durationMinutes can be null if not specified.
+
+Return ONLY the JSON object. No markdown, no explanations, no code fences.`,
       },
       { role: 'user', content: text },
     ],

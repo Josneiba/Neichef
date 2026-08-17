@@ -164,6 +164,16 @@
     background: linear-gradient(180deg, rgba(255,255,255,0.88), rgba(246,243,237,0.6));
   }
 
+  .hero-fade-up {
+    opacity: 0;
+    animation: fade-up 0.7s ease-out forwards;
+  }
+
+  .feature-card-reveal {
+    opacity: 0;
+    animation: fade-up 0.7s ease-out forwards;
+  }
+
   .auth-page {
     background:
       radial-gradient(circle at top left, rgba(45, 105, 74, 0.12), transparent 28%),
@@ -173,5 +183,30 @@
   .auth-card {
     background: rgba(255, 255, 255, 0.8);
     backdrop-filter: blur(12px);
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .hero-fade-up,
+  .feature-card-reveal {
+    animation: none;
+    opacity: 1;
+    transform: none;
   }
 }

@@ -305,7 +305,6 @@ export function AddItemModal({ onClose, onItemAdded, initialMode = 'manual' }: A
   }
 
   async function handlePhotoConfirm() {
-    const expirationDate = defaultExpiryDate(7)
     const confirmedItems = photoItems.filter((i) => i.confirmed && i.name.trim())
 
     try {
@@ -317,7 +316,7 @@ export function AddItemModal({ onClose, onItemAdded, initialMode = 'manual' }: A
             unit: item.unit,
             category: item.category,
             location: 'fridge',
-            expirationDate,
+            expirationDate: defaultExpiryDate(item.category, item.name),
           }),
         ),
       )
@@ -504,7 +503,6 @@ export function AddItemModal({ onClose, onItemAdded, initialMode = 'manual' }: A
   }
 
   async function handleReceiptConfirm() {
-    const expirationDate = defaultExpiryDate(7)
     const itemsToAdd = receiptItems.filter((i) => i.confirmed && i.name.trim())
 
     try {
@@ -516,7 +514,7 @@ export function AddItemModal({ onClose, onItemAdded, initialMode = 'manual' }: A
             unit: item.unit,
             category: item.category,
             location: 'pantry',
-            expirationDate,
+            expirationDate: defaultExpiryDate(item.category, item.name),
           }),
         ),
       )

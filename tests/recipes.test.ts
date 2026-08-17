@@ -3,6 +3,7 @@ import { normalizeMealToRecipe, splitInstructionsIntoSteps } from '@/lib/recipes
 import { computeDifficulty } from '@/lib/recipes/difficulty'
 import { parseImportedRecipeText } from '@/lib/recipes/import'
 import { dedupeRecipes, filterAndScoreRecipes } from '@/lib/recipes/engine'
+import { normalizeFoodName, parseIngredientList } from '@/lib/recipes/enrich'
 
 describe('external recipe normalization', () => {
   it('splits instruction blobs into discrete steps', () => {
@@ -122,6 +123,11 @@ describe('external recipe normalization', () => {
     expect(draft.ingredients).toHaveLength(2)
     expect(draft.steps).toHaveLength(2)
     expect(draft.difficulty).toBe('easy')
+  })
+
+  it('normalizes common Spanish ingredient names to English terms for recipe searches', () => {
+    expect(normalizeFoodName('pollo con tomate y arroz')).toBe('chicken tomato rice')
+    expect(parseIngredientList('pollo, tomate, arroz')).toEqual(['chicken', 'tomato', 'rice'])
   })
 
   it('keeps useful recipe suggestions when the pantry only matches a few ingredients', () => {

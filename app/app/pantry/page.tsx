@@ -24,8 +24,14 @@ export default function PantryPage() {
   const inventoryStats = useMemo(() => inventorySummary(items), [items])
   const groupedItems = useMemo(() => groupPantryStock(items), [items])
   const storageLabels = useMemo(
-    () => Object.fromEntries(STORAGE_LOCATIONS.map((location) => [location.value, location.label])) as Record<StorageLocation, string>,
-    [],
+    () => ({
+      pantry: t('pantryLocation'),
+      fridge: t('fridge'),
+      freezer: t('freezer'),
+      spice_rack: t('spiceRack'),
+      cellar: t('cellar'),
+    }) as Record<StorageLocation, string>,
+    [t],
   )
   const [addMode, setAddMode] = useState<'manual' | 'photo' | 'barcode' | 'receipt'>('manual')
   const [filterUrgency, setFilterUrgency] = useState<ItemUrgency | 'all'>('all')
