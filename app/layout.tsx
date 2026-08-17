@@ -19,6 +19,10 @@ const playfair = Playfair_Display({
 export const metadata: Metadata = {
   title: 'NeiChef — Kitchen Pantry Management',
   description: 'Track your pantry, get warned before food expires, cook with what you already have. Reduce food waste and control your grocery budget.',
+  icons: {
+    icon: '/icon.svg',
+    apple: '/apple-icon.png',
+  },
 }
 
 export const viewport: Viewport = {
